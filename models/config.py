@@ -55,8 +55,8 @@ class TrainConfig:
     lr_backbones: float = 5e-5
     data_cutoff_idx: int = None
     val_ratio: float = 0.025
-    batch_size: int = 8
-    gradient_accumulation_steps: int = 8
+    batch_size: int = 2
+    gradient_accumulation_steps: int = 32
     max_grad_norm: float = 1.0
     eval_in_epochs: bool = True
     eval_interval: int = gradient_accumulation_steps * 100
