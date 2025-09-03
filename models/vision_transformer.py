@@ -291,10 +291,11 @@ class ViT(nn.Module):
         from transformers import AutoConfig
 
         # Detect model type
-        is_dinov3 = "dinov" in cfg.vit_model_type.lower()
+        is_dinov2 = "dinov2" in cfg.vit_model_type.lower()
+        is_dinov3 = "dinov3" in cfg.vit_model_type.lower()
 
         # Load HF config
-        if is_dinov3:
+        if is_dinov2 or is_dinov3:
             hf_config = AutoConfig.from_pretrained(cfg.vit_model_type)
             # Update config for DINOv3/DINOv2
             cfg.vit_architecture = "dinov3"
@@ -333,8 +334,41 @@ class ViT(nn.Module):
         sd = model.state_dict()
 
         if is_dinov3:
-            # DINOv3 weight mapping
-            mapping = _get_dinov3_mapping(cfg)
+            # DINOv3 weight mapping - actual keys from the model
+            mapping = {
+                "embeddings.patch_embeddings.weight": "patch_embedding.conv.weight",
+                "embeddings.patch_embeddings.bias": "patch_embedding.conv.bias",
+                "embeddings.cls_token": "patch_embedding.cls_token",
+                "embeddings.register_tokens": "patch_embedding.register_tokens",
+            }
+            # Add layer mappings for DINOv3
+            for i in range(cfg.vit_n_blocks):
+                # Attention
+                mapping[f"layer.{i}.attention.q_proj.weight"] = f"blocks.{i}.attn.q_proj.weight"
+                mapping[f"layer.{i}.attention.q_proj.bias"] = f"blocks.{i}.attn.q_proj.bias"
+                mapping[f"layer.{i}.attention.k_proj.weight"] = f"blocks.{i}.attn.k_proj.weight"
+                mapping[f"layer.{i}.attention.v_proj.weight"] = f"blocks.{i}.attn.v_proj.weight"
+                mapping[f"layer.{i}.attention.v_proj.bias"] = f"blocks.{i}.attn.v_proj.bias"
+                mapping[f"layer.{i}.attention.o_proj.weight"] = f"blocks.{i}.attn.out_proj.weight"
+                mapping[f"layer.{i}.attention.o_proj.bias"] = f"blocks.{i}.attn.out_proj.bias"
+                
+                # Layer scale parameters (if used)
+                mapping[f"layer.{i}.layer_scale1.lambda1"] = f"blocks.{i}.layer_scale1"
+                mapping[f"layer.{i}.layer_scale2.lambda1"] = f"blocks.{i}.layer_scale2"
+                
+                # MLP - DINOv3 uses SwiGLU
+                mapping[f"layer.{i}.mlp.gate_proj.weight"] = f"blocks.{i}.mlp.gate_proj.weight"
+                mapping[f"layer.{i}.mlp.gate_proj.bias"] = f"blocks.{i}.mlp.gate_proj.bias"
+                mapping[f"layer.{i}.mlp.up_proj.weight"] = f"blocks.{i}.mlp.up_proj.weight"
+                mapping[f"layer.{i}.mlp.up_proj.bias"] = f"blocks.{i}.mlp.up_proj.bias"
+                mapping[f"layer.{i}.mlp.down_proj.weight"] = f"blocks.{i}.mlp.down_proj.weight"
+                mapping[f"layer.{i}.mlp.down_proj.bias"] = f"blocks.{i}.mlp.down_proj.bias"
+        elif is_dinov2:
+            # DINOv2 weight mapping
+            mapping = {
+                "embeddings.patch_embeddings.projection.weight": "patch_embedding.conv.weight",
+                "embeddings.patch_embeddings.projection.bias": "patch_embedding.conv.bias",
+            }
         else:
             # SigLIP weight mapping
             mapping = {
@@ -345,42 +379,44 @@ class ViT(nn.Module):
                 "vision_model.post_layernorm.bias": "layer_norm.bias",
             }
 
-        for i in range(cfg.vit_n_blocks):
-            # Layer norms
-            mapping[f"vision_model.encoder.layers.{i}.layer_norm1.weight"] = (
-                f"blocks.{i}.ln1.weight"
-            )
-            mapping[f"vision_model.encoder.layers.{i}.layer_norm1.bias"] = (
-                f"blocks.{i}.ln1.bias"
-            )
-            mapping[f"vision_model.encoder.layers.{i}.layer_norm2.weight"] = (
-                f"blocks.{i}.ln2.weight"
-            )
-            mapping[f"vision_model.encoder.layers.{i}.layer_norm2.bias"] = (
-                f"blocks.{i}.ln2.bias"
-            )
+        if not is_dinov3 and not is_dinov2:
+            # Only add SigLIP layer mappings
+            for i in range(cfg.vit_n_blocks):
+                # Layer norms
+                mapping[f"vision_model.encoder.layers.{i}.layer_norm1.weight"] = (
+                    f"blocks.{i}.ln1.weight"
+                )
+                mapping[f"vision_model.encoder.layers.{i}.layer_norm1.bias"] = (
+                    f"blocks.{i}.ln1.bias"
+                )
+                mapping[f"vision_model.encoder.layers.{i}.layer_norm2.weight"] = (
+                    f"blocks.{i}.ln2.weight"
+                )
+                mapping[f"vision_model.encoder.layers.{i}.layer_norm2.bias"] = (
+                    f"blocks.{i}.ln2.bias"
+                )
 
-            # MLP
-            mapping[f"vision_model.encoder.layers.{i}.mlp.fc1.weight"] = (
-                f"blocks.{i}.mlp.fc1.weight"
-            )
-            mapping[f"vision_model.encoder.layers.{i}.mlp.fc1.bias"] = (
-                f"blocks.{i}.mlp.fc1.bias"
-            )
-            mapping[f"vision_model.encoder.layers.{i}.mlp.fc2.weight"] = (
-                f"blocks.{i}.mlp.fc2.weight"
-            )
-            mapping[f"vision_model.encoder.layers.{i}.mlp.fc2.bias"] = (
-                f"blocks.{i}.mlp.fc2.bias"
-            )
+                # MLP
+                mapping[f"vision_model.encoder.layers.{i}.mlp.fc1.weight"] = (
+                    f"blocks.{i}.mlp.fc1.weight"
+                )
+                mapping[f"vision_model.encoder.layers.{i}.mlp.fc1.bias"] = (
+                    f"blocks.{i}.mlp.fc1.bias"
+                )
+                mapping[f"vision_model.encoder.layers.{i}.mlp.fc2.weight"] = (
+                    f"blocks.{i}.mlp.fc2.weight"
+                )
+                mapping[f"vision_model.encoder.layers.{i}.mlp.fc2.bias"] = (
+                    f"blocks.{i}.mlp.fc2.bias"
+                )
 
-            # Output projection
-            mapping[f"vision_model.encoder.layers.{i}.self_attn.out_proj.weight"] = (
-                f"blocks.{i}.attn.out_proj.weight"
-            )
-            mapping[f"vision_model.encoder.layers.{i}.self_attn.out_proj.bias"] = (
-                f"blocks.{i}.attn.out_proj.bias"
-            )
+                # Output projection
+                mapping[f"vision_model.encoder.layers.{i}.self_attn.out_proj.weight"] = (
+                    f"blocks.{i}.attn.out_proj.weight"
+                )
+                mapping[f"vision_model.encoder.layers.{i}.self_attn.out_proj.bias"] = (
+                    f"blocks.{i}.attn.out_proj.bias"
+                )
 
         with safetensors.safe_open(
             filename=safetensors_file, framework="pt", device="cpu"
@@ -403,8 +439,30 @@ class ViT(nn.Module):
                     if our_key not in sd:
                         print(f"Warning: Key {our_key} not found in model state dict")
 
-            # Manually handle QKV concatenation since our implementation combines Q, K, V into one
-            if not is_dinov3:  # Only for SigLIP - DINOv2 has QKV already concatenated
+            # Manually handle QKV concatenation since our implementation combines Q, K, V into one  
+            if is_dinov3:
+                # DINOv3 has separate Q, K, V - need to concatenate
+                for i in range(model.cfg.vit_n_blocks):
+                    try:
+                        q_weight = f.get_tensor(f"layer.{i}.attention.q_proj.weight")
+                        k_weight = f.get_tensor(f"layer.{i}.attention.k_proj.weight")
+                        v_weight = f.get_tensor(f"layer.{i}.attention.v_proj.weight")
+                        
+                        # Concatenate Q, K, V weights
+                        qkv_weight = torch.cat([q_weight, k_weight, v_weight], dim=0)
+                        sd[f"blocks.{i}.attn.qkv_proj.weight"].copy_(qkv_weight)
+                        
+                        # Same for biases if they exist
+                        if f"layer.{i}.attention.q_proj.bias" in f.keys():
+                            q_bias = f.get_tensor(f"layer.{i}.attention.q_proj.bias")
+                            k_bias = torch.zeros_like(q_bias)  # K doesn't have bias in DINOv3
+                            v_bias = f.get_tensor(f"layer.{i}.attention.v_proj.bias")
+                            qkv_bias = torch.cat([q_bias, k_bias, v_bias], dim=0)
+                            sd[f"blocks.{i}.attn.qkv_proj.bias"].copy_(qkv_bias)
+                    except:
+                        # Some models might not have this, skip
+                        pass
+            elif not is_dinov2:  # Only for SigLIP
                 for i in range(model.cfg.vit_n_blocks):
                     q_weight = f.get_tensor(
                         f"vision_model.encoder.layers.{i}.self_attn.q_proj.weight"

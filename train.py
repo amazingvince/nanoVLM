@@ -12,7 +12,8 @@ import PIL.PngImagePlugin
 import torch
 import torch.distributed as dist
 import torch.optim as optim
-from datasets import concatenate_datasets, get_dataset_config_names, load_dataset
+from datasets import (concatenate_datasets, get_dataset_config_names,
+                      load_dataset)
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 
@@ -779,16 +780,17 @@ def main():
                 # Real DINOv3!
                 vlm_cfg.vit_model_type = "facebook/dinov3-vits16plus-pretrain-lvd1689m"  # Small version
                 vlm_cfg.vit_num_registers = 4  # DINOv3 has registers
-                vlm_cfg.vit_use_swiglu = True  # DINOv3 uses SwiGLU
+                vlm_cfg.vit_use_swiglu = True  # DINOv3 DOES use SwiGLU (gated MLP)
                 vlm_cfg.vit_use_rope = True  # DINOv3 uses RoPE
+                vlm_cfg.vit_img_size = 224  # DINOv3 default size
             vlm_cfg.vit_cls_flag = True
             vlm_cfg.mp_handle_special_tokens = True
 
         # Update language model configuration
         if args.language_model == "gemma":
             vlm_cfg.lm_architecture = "gemma"
-            vlm_cfg.lm_model_type = "google/gemma-2-2b-it"
-            vlm_cfg.lm_tokenizer = "google/gemma-2-2b-it"
+            vlm_cfg.lm_model_type = "google/gemma-3-270m-it"  # Real Gemma 3 270M model
+            vlm_cfg.lm_tokenizer = "google/gemma-3-270m-it"
 
     train_cfg = config.TrainConfig()
 

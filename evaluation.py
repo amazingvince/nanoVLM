@@ -25,8 +25,7 @@ from lmms_eval import evaluator, utils
 from lmms_eval.evaluator import request_caching_arg_to_dict
 from lmms_eval.loggers import EvaluationTracker, WandbLogger
 from lmms_eval.tasks import TaskManager
-from lmms_eval.utils import (make_table,
-                             simple_parse_args_string)
+from lmms_eval.utils import make_table, simple_parse_args_string
 from loguru import logger as eval_logger
 
 from eval.lmms_eval_wrapper import NanoVLMWrapper

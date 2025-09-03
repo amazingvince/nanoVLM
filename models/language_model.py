@@ -208,21 +208,21 @@ class LanguageModelGroupedQueryAttention(nn.Module):
         assert self.n_heads % self.n_kv_heads == 0, (
             "n_heads must be divisible by n_kv_heads"
         )
-        assert self.embd_dim % self.n_heads == 0, (
-            "embd_dim must be divisible by num_heads"
-        )
 
         self.n_kv_groups = self.n_heads // self.n_kv_heads
-        self.head_dim = self.embd_dim // self.n_heads
+        # Support custom head_dim (e.g., Gemma-3 uses 256 instead of 640/4=160)
+        self.head_dim = getattr(cfg, 'lm_head_dim', self.embd_dim // self.n_heads)
 
-        self.q_proj = nn.Linear(self.embd_dim, self.embd_dim, bias=False)
+        # Q projection can be larger than embd_dim if head_dim is custom
+        self.q_proj = nn.Linear(self.embd_dim, self.n_heads * self.head_dim, bias=False)
         self.k_proj = nn.Linear(
             self.embd_dim, self.head_dim * self.n_kv_heads, bias=False
         )
         self.v_proj = nn.Linear(
             self.embd_dim, self.head_dim * self.n_kv_heads, bias=False
         )
-        self.out_proj = nn.Linear(self.embd_dim, self.embd_dim, bias=False)
+        # Output projection from potentially larger Q dimension back to embd_dim
+        self.out_proj = nn.Linear(self.n_heads * self.head_dim, self.embd_dim, bias=False)
 
         self.attn_dropout = nn.Dropout(self.dropout)
         self.resid_dropout = nn.Dropout(self.dropout)
@@ -655,6 +655,12 @@ class LanguageModel(nn.Module):
             hf_config, "attention_dropout", 0.0
         )  # Gemma might not have this
         cfg.lm_n_blocks = hf_config.num_hidden_layers
+        
+        # Gemma-3 can have custom head_dim different from hidden_size/num_heads
+        if hasattr(hf_config, "head_dim"):
+            cfg.lm_head_dim = hf_config.head_dim
+        else:
+            cfg.lm_head_dim = cfg.lm_hidden_dim // cfg.lm_n_heads
 
         # Set architecture flag
         cfg.lm_architecture = "gemma" if is_gemma else "llama"

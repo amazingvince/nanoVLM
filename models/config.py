@@ -123,37 +123,31 @@ class TrainConfig:
 
 # Preset configurations
 def get_dinov3_gemma_config():
-    """Returns config for DINOv3 + Gemma"""
+    """Returns config for DINOv3 + Gemma - dimensions auto-detected from models"""
     return VLMConfig(
-        # DINOv3 settings - using REAL DINOv3!
+        # DINOv3 settings - from actual model config
         vit_architecture="dinov3",
-        vit_model_type="facebook/dinov3-vits16plus-pretrain-lvd1689m",  # Real DINOv3 small model (384 dim)
-        vit_hidden_dim=384,  # Will be updated from model config
-        vit_inter_dim=1536,
-        vit_n_heads=6,
-        vit_n_blocks=12,
+        vit_model_type="facebook/dinov3-vits16plus-pretrain-lvd1689m",  # Real DINOv3
         vit_cls_flag=True,
-        vit_num_registers=4,  # DINOv3 has register tokens
-        vit_use_swiglu=True,  # DINOv3 uses SwiGLU
-        vit_use_rope=True,  # DINOv3 uses RoPE
-        vit_img_size=518,  # DINOv3 default size
+        vit_num_registers=4,  # DINOv3 has 4 register tokens  
+        vit_use_swiglu=True,  # DINOv3 DOES use gated MLP (SwiGLU)
+        vit_use_rope=True,  # DINOv3 uses RoPE with theta=100
+        vit_img_size=224,  # DINOv3 default image size
         vit_patch_size=16,
-        # Gemma settings
+        # Dimensions will be auto-detected from model
+        
+        # Gemma settings  
         lm_architecture="gemma",
-        lm_model_type="google/gemma-2-2b-it",  # Using available Gemma model
-        lm_tokenizer="google/gemma-2-2b-it",
-        lm_hidden_dim=2304,  # Will be updated from model config
-        lm_inter_dim=9216,
-        lm_rms_eps=1e-6,
-        lm_re_base=10000,
-        lm_max_position_embeddings=8192,
-        lm_base_vocab_size=256000,
-        lm_n_heads=16,
-        lm_n_kv_heads=4,
-        lm_n_blocks=26,
+        lm_model_type="google/gemma-3-270m-it",  # Real Gemma 3 270M
+        lm_tokenizer="google/gemma-3-270m-it",
+        # Dimensions will be auto-detected from model config
+        # Just set vocab to handle extra tokens
+        lm_base_vocab_size=262144,  # Gemma-3 actual vocab
+        lm_vocab_size=262144 + 17,  # With extra tokens
         extra_token_amount=17,
-        # Modality projector
+        
+        # Modality projector - for 224x224 images with patch_size=16
         mp_handle_special_tokens=True,
         mp_pixel_shuffle_factor=2,
-        mp_image_token_length=49,  # (14*14)/4 after pixel shuffle
+        mp_image_token_length=49,  # ((224/16)^2)/4 = 196/4 = 49 after pixel shuffle
     )
