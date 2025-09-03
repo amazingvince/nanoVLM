@@ -64,7 +64,12 @@ class VisionLanguageModel(nn.Module):
             else:
                 if isinstance(images[0], list):
                     images = [img for sublist in images for img in sublist]
-                images = torch.cat(images, dim=0).to(input_ids.device)
+                # For DINOv3: Stack images as batch dimension, not concatenate
+                # Each image should be [3, H, W], stack to get [N, 3, H, W]
+                if images[0].dim() == 3:  # Individual images
+                    images = torch.stack(images, dim=0).to(input_ids.device)
+                else:  # Already batched
+                    images = torch.cat(images, dim=0).to(input_ids.device)
 
         image_embd = self.vision_encoder(images)
         image_embd = self.MP(image_embd)  # [num_images, mp_image_token_length, D_lm]

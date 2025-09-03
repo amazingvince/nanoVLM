@@ -13,6 +13,7 @@ class VLMConfig:
     vit_inter_dim: int = 4 * vit_hidden_dim
     vit_patch_size: int = 16
     vit_img_size: int = 512
+    vit_channels: int = 3  # Number of input channels (RGB)
     vit_n_heads: int = 12
     vit_dropout: float = 0.0
     vit_n_blocks: int = 12
