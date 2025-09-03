@@ -112,7 +112,9 @@ def get_run_name(train_cfg, vlm_cfg):
 
 def get_dataloaders(train_cfg, vlm_cfg):
     # Create datasets
-    image_processor = get_image_processor(vlm_cfg.max_img_size, vlm_cfg.vit_img_size)
+    # Use single image mode for DINOv3 (resize to 224x224 instead of splitting)
+    single_image_mode = vlm_cfg.vit_architecture == "dinov3"
+    image_processor = get_image_processor(vlm_cfg.max_img_size, vlm_cfg.vit_img_size, single_image_mode)
     tokenizer = get_tokenizer(
         vlm_cfg.lm_tokenizer, vlm_cfg.vlm_extra_tokens, vlm_cfg.lm_chat_template
     )

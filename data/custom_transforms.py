@@ -96,14 +96,11 @@ class SplitImage(torch.nn.Module):
 
         b, c, h, w = x.shape
         
-        # Pad image if not divisible by patch_size
-        pad_h = (self.p - h % self.p) % self.p
-        pad_w = (self.p - w % self.p) % self.p
-        
-        if pad_h > 0 or pad_w > 0:
-            # Pad with zeros (black pixels) on the right and bottom
-            x = torch.nn.functional.pad(x, (0, pad_w, 0, pad_h), mode='constant', value=0)
-            h, w = h + pad_h, w + pad_w
+        # For SigLIP splitting, image should be divisible by patch_size
+        # This is handled by DynamicResize before we get here
+        if h % self.p or w % self.p:
+            # Could pad here but DynamicResize should handle it
+            raise ValueError(f'Image size {(h,w)} not divisible by patch_size {self.p}. DynamicResize should have handled this.')
 
         n_h, n_w = h // self.p, w // self.p
         patches = rearrange(x, 'b c (nh ph) (nw pw) -> (b nh nw) c ph pw',
