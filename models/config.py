@@ -107,7 +107,7 @@ class TrainConfig:
     max_images_per_example: int = 4
     max_images_per_knapsack: int = 18
     max_sample_length: int = 1024
-    compile: bool = True
+    compile: bool = False
     resume_from_vlm_checkpoint: bool = False  # Indicate if the training should be resumed from a checkpoint of the whole VLM or you want to start from scratch
     train_dataset_path: str = "HuggingFaceM4/the_cauldron"
     train_dataset_name: tuple[str, ...] = ("all",)
