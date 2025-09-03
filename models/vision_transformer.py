@@ -301,14 +301,19 @@ class ViT(nn.Module):
             cfg.vit_architecture = "dinov3"
             cfg.vit_hidden_dim = hf_config.hidden_size
             # DINOv2 config doesn't have intermediate_size, calculate it
-            cfg.vit_inter_dim = getattr(hf_config, "intermediate_size", hf_config.hidden_size * 4)
+            cfg.vit_inter_dim = getattr(
+                hf_config, "intermediate_size", hf_config.hidden_size * 4
+            )
             cfg.vit_n_heads = hf_config.num_attention_heads
             cfg.vit_n_blocks = hf_config.num_hidden_layers
             cfg.vit_patch_size = hf_config.patch_size
             cfg.vit_img_size = hf_config.image_size
             cfg.vit_cls_flag = True
             cfg.vit_num_registers = getattr(hf_config, "num_register_tokens", 0)
-            cfg.vit_use_swiglu = getattr(hf_config, "use_swiglu_ffn", False)
+            # DINOv3 uses "use_gated_mlp" in config, not "use_swiglu_ffn"
+            cfg.vit_use_swiglu = getattr(
+                hf_config, "use_gated_mlp", getattr(hf_config, "use_swiglu_ffn", False)
+            )
             cfg.vit_use_rope = False  # DINOv2 doesn't use RoPE
             cfg.vit_ln_eps = getattr(hf_config, "layer_norm_eps", 1e-6)
         else:
@@ -343,26 +348,21 @@ class ViT(nn.Module):
             }
             # Add layer mappings for DINOv3
             for i in range(cfg.vit_n_blocks):
-                # Attention
-                mapping[f"layer.{i}.attention.q_proj.weight"] = f"blocks.{i}.attn.q_proj.weight"
-                mapping[f"layer.{i}.attention.q_proj.bias"] = f"blocks.{i}.attn.q_proj.bias"
-                mapping[f"layer.{i}.attention.k_proj.weight"] = f"blocks.{i}.attn.k_proj.weight"
-                mapping[f"layer.{i}.attention.v_proj.weight"] = f"blocks.{i}.attn.v_proj.weight"
-                mapping[f"layer.{i}.attention.v_proj.bias"] = f"blocks.{i}.attn.v_proj.bias"
-                mapping[f"layer.{i}.attention.o_proj.weight"] = f"blocks.{i}.attn.out_proj.weight"
-                mapping[f"layer.{i}.attention.o_proj.bias"] = f"blocks.{i}.attn.out_proj.bias"
-                
-                # Layer scale parameters (if used)
-                mapping[f"layer.{i}.layer_scale1.lambda1"] = f"blocks.{i}.layer_scale1"
-                mapping[f"layer.{i}.layer_scale2.lambda1"] = f"blocks.{i}.layer_scale2"
-                
-                # MLP - DINOv3 uses SwiGLU
-                mapping[f"layer.{i}.mlp.gate_proj.weight"] = f"blocks.{i}.mlp.gate_proj.weight"
-                mapping[f"layer.{i}.mlp.gate_proj.bias"] = f"blocks.{i}.mlp.gate_proj.bias"
-                mapping[f"layer.{i}.mlp.up_proj.weight"] = f"blocks.{i}.mlp.up_proj.weight"
-                mapping[f"layer.{i}.mlp.up_proj.bias"] = f"blocks.{i}.mlp.up_proj.bias"
-                mapping[f"layer.{i}.mlp.down_proj.weight"] = f"blocks.{i}.mlp.down_proj.weight"
-                mapping[f"layer.{i}.mlp.down_proj.bias"] = f"blocks.{i}.mlp.down_proj.bias"
+                # Attention - q,k,v handled separately in QKV concatenation
+                mapping[f"layer.{i}.attention.o_proj.weight"] = (
+                    f"blocks.{i}.attn.out_proj.weight"
+                )
+                mapping[f"layer.{i}.attention.o_proj.bias"] = (
+                    f"blocks.{i}.attn.out_proj.bias"
+                )
+
+                # MLP - DINOv3 uses SwiGLU (gate=w1, up=w3, down=w2)
+                mapping[f"layer.{i}.mlp.gate_proj.weight"] = f"blocks.{i}.mlp.w1.weight"
+                mapping[f"layer.{i}.mlp.gate_proj.bias"] = f"blocks.{i}.mlp.w1.bias"
+                mapping[f"layer.{i}.mlp.up_proj.weight"] = f"blocks.{i}.mlp.w3.weight"
+                mapping[f"layer.{i}.mlp.up_proj.bias"] = f"blocks.{i}.mlp.w3.bias"
+                mapping[f"layer.{i}.mlp.down_proj.weight"] = f"blocks.{i}.mlp.w2.weight"
+                mapping[f"layer.{i}.mlp.down_proj.bias"] = f"blocks.{i}.mlp.w2.bias"
         elif is_dinov2:
             # DINOv2 weight mapping
             mapping = {
@@ -411,9 +411,9 @@ class ViT(nn.Module):
                 )
 
                 # Output projection
-                mapping[f"vision_model.encoder.layers.{i}.self_attn.out_proj.weight"] = (
-                    f"blocks.{i}.attn.out_proj.weight"
-                )
+                mapping[
+                    f"vision_model.encoder.layers.{i}.self_attn.out_proj.weight"
+                ] = f"blocks.{i}.attn.out_proj.weight"
                 mapping[f"vision_model.encoder.layers.{i}.self_attn.out_proj.bias"] = (
                     f"blocks.{i}.attn.out_proj.bias"
                 )
@@ -439,7 +439,7 @@ class ViT(nn.Module):
                     if our_key not in sd:
                         print(f"Warning: Key {our_key} not found in model state dict")
 
-            # Manually handle QKV concatenation since our implementation combines Q, K, V into one  
+            # Manually handle QKV concatenation since our implementation combines Q, K, V into one
             if is_dinov3:
                 # DINOv3 has separate Q, K, V - need to concatenate
                 for i in range(model.cfg.vit_n_blocks):
@@ -447,19 +447,21 @@ class ViT(nn.Module):
                         q_weight = f.get_tensor(f"layer.{i}.attention.q_proj.weight")
                         k_weight = f.get_tensor(f"layer.{i}.attention.k_proj.weight")
                         v_weight = f.get_tensor(f"layer.{i}.attention.v_proj.weight")
-                        
+
                         # Concatenate Q, K, V weights
                         qkv_weight = torch.cat([q_weight, k_weight, v_weight], dim=0)
                         sd[f"blocks.{i}.attn.qkv_proj.weight"].copy_(qkv_weight)
-                        
+
                         # Same for biases if they exist
                         if f"layer.{i}.attention.q_proj.bias" in f.keys():
                             q_bias = f.get_tensor(f"layer.{i}.attention.q_proj.bias")
-                            k_bias = torch.zeros_like(q_bias)  # K doesn't have bias in DINOv3
+                            k_bias = torch.zeros_like(
+                                q_bias
+                            )  # K doesn't have bias in DINOv3
                             v_bias = f.get_tensor(f"layer.{i}.attention.v_proj.bias")
                             qkv_bias = torch.cat([q_bias, k_bias, v_bias], dim=0)
                             sd[f"blocks.{i}.attn.qkv_proj.bias"].copy_(qkv_bias)
-                    except:
+                    except Exception:
                         # Some models might not have this, skip
                         pass
             elif not is_dinov2:  # Only for SigLIP
@@ -496,7 +498,7 @@ class ViT(nn.Module):
                         qkv_bias = f.get_tensor(f"encoder.layer.{i}.attn.qkv.bias")
                         sd[f"blocks.{i}.attn.qkv_proj.weight"].copy_(qkv_weight)
                         sd[f"blocks.{i}.attn.qkv_proj.bias"].copy_(qkv_bias)
-                    except:
+                    except Exception:
                         # Some models might not have this, skip
                         pass
 

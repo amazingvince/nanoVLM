@@ -62,11 +62,9 @@ class RotaryEmbedding(nn.Module):
 
     def __init__(self, cfg):
         super().__init__()
-        assert cfg.lm_hidden_dim % cfg.lm_n_heads == 0, (
-            "Hidden dimension must be divisible by number of heads"
-        )
 
-        self.dim = cfg.lm_hidden_dim // cfg.lm_n_heads  # dim of each head
+        # Use custom head_dim if available (e.g., Gemma-3 has 256 instead of 640/4=160)
+        self.dim = getattr(cfg, "lm_head_dim", cfg.lm_hidden_dim // cfg.lm_n_heads)
         self.base = cfg.lm_re_base
         self.max_seq_len = cfg.lm_max_position_embeddings
         # Standard RoPE implementation - create frequencies for each dimension
@@ -211,7 +209,7 @@ class LanguageModelGroupedQueryAttention(nn.Module):
 
         self.n_kv_groups = self.n_heads // self.n_kv_heads
         # Support custom head_dim (e.g., Gemma-3 uses 256 instead of 640/4=160)
-        self.head_dim = getattr(cfg, 'lm_head_dim', self.embd_dim // self.n_heads)
+        self.head_dim = getattr(cfg, "lm_head_dim", self.embd_dim // self.n_heads)
 
         # Q projection can be larger than embd_dim if head_dim is custom
         self.q_proj = nn.Linear(self.embd_dim, self.n_heads * self.head_dim, bias=False)
@@ -222,7 +220,9 @@ class LanguageModelGroupedQueryAttention(nn.Module):
             self.embd_dim, self.head_dim * self.n_kv_heads, bias=False
         )
         # Output projection from potentially larger Q dimension back to embd_dim
-        self.out_proj = nn.Linear(self.n_heads * self.head_dim, self.embd_dim, bias=False)
+        self.out_proj = nn.Linear(
+            self.n_heads * self.head_dim, self.embd_dim, bias=False
+        )
 
         self.attn_dropout = nn.Dropout(self.dropout)
         self.resid_dropout = nn.Dropout(self.dropout)
@@ -353,7 +353,8 @@ class LanguageModelGroupedQueryAttention(nn.Module):
             attn = self.attn_dropout(attn)
             y = attn @ v_exp
 
-        y = y.transpose(1, 2).contiguous().view(B, T_curr, C)
+        # Reshape back - need to use n_heads * head_dim, not C
+        y = y.transpose(1, 2).contiguous().view(B, T_curr, self.n_heads * self.head_dim)
         y = self.out_proj(y)
         y = self.resid_dropout(y)
 
@@ -655,7 +656,7 @@ class LanguageModel(nn.Module):
             hf_config, "attention_dropout", 0.0
         )  # Gemma might not have this
         cfg.lm_n_blocks = hf_config.num_hidden_layers
-        
+
         # Gemma-3 can have custom head_dim different from hidden_size/num_heads
         if hasattr(hf_config, "head_dim"):
             cfg.lm_head_dim = hf_config.head_dim

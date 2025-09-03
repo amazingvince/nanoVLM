@@ -129,14 +129,13 @@ def get_dinov3_gemma_config():
         vit_architecture="dinov3",
         vit_model_type="facebook/dinov3-vits16plus-pretrain-lvd1689m",  # Real DINOv3
         vit_cls_flag=True,
-        vit_num_registers=4,  # DINOv3 has 4 register tokens  
+        vit_num_registers=4,  # DINOv3 has 4 register tokens
         vit_use_swiglu=True,  # DINOv3 DOES use gated MLP (SwiGLU)
         vit_use_rope=True,  # DINOv3 uses RoPE with theta=100
         vit_img_size=224,  # DINOv3 default image size
         vit_patch_size=16,
         # Dimensions will be auto-detected from model
-        
-        # Gemma settings  
+        # Gemma settings
         lm_architecture="gemma",
         lm_model_type="google/gemma-3-270m-it",  # Real Gemma 3 270M
         lm_tokenizer="google/gemma-3-270m-it",
@@ -145,7 +144,6 @@ def get_dinov3_gemma_config():
         lm_base_vocab_size=262144,  # Gemma-3 actual vocab
         lm_vocab_size=262144 + 17,  # With extra tokens
         extra_token_amount=17,
-        
         # Modality projector - for 224x224 images with patch_size=16
         mp_handle_special_tokens=True,
         mp_pixel_shuffle_factor=2,
