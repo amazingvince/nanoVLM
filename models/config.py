@@ -69,7 +69,7 @@ class TrainConfig:
     resume_from_vlm_checkpoint: bool = False # Indicate if the training should be resumed from a checkpoint of the whole VLM or you want to start from scratch
     train_dataset_path: str = 'HuggingFaceM4/the_cauldron'
     train_dataset_name: tuple[str, ...] = ("all", )
-    wandb_entity: str = "HuggingFace" # Indicate the entity to log to in wandb
+    wandb_entity: str = None # Leave as None to use your default wandb entity
     log_wandb: bool = True
     use_lmms_eval: bool = True # Use lmms-eval for evaluation
     lmms_eval_tasks: str = 'mmstar,mmmu,ocrbench,textvqa' # Pass additional task as one string, seperated by commas without spaces (e.g. 'mmstar,mmmu,ocrbench')
