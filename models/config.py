@@ -75,3 +75,5 @@ class TrainConfig:
     lmms_eval_tasks: str = 'mmstar,mmmu,ocrbench,textvqa' # Pass additional task as one string, seperated by commas without spaces (e.g. 'mmstar,mmmu,ocrbench')
     lmms_eval_limit: int = 2000
     lmms_eval_batch_size: int = 128
+    num_workers: int = 4  # Number of DataLoader worker threads (set to 0 to disable multiprocessing)
+    max_threads: int = None  # Maximum number of threads for torch operations (None = no limit)

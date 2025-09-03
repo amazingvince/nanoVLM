@@ -3,21 +3,20 @@ LMMS-Eval wrapper for nanoVLM model.
 This allows using lmms-eval for intermediate evaluation during training.
 """
 
-import torch
-from typing import List, Tuple, Optional, Union
-from PIL import Image
-import numpy as np
-import torch.distributed as dist
+from typing import List, Optional, Tuple
 
+import numpy as np
+import torch
+import torch.distributed as dist
+from lmms_eval import utils
+from lmms_eval.api.instance import Instance
+from lmms_eval.api.model import lmms
+from PIL import Image
 from tqdm import tqdm
 
-from lmms_eval import utils
-from lmms_eval.api.model import lmms
-from lmms_eval.api.instance import Instance
-
+from data.processors import (get_image_processor, get_image_string,
+                             get_tokenizer)
 from models.vision_language_model import VisionLanguageModel
-from data.processors import get_tokenizer, get_image_processor, get_image_string
-from data.collators import VQACollator
 
 
 class NanoVLMWrapper(lmms):

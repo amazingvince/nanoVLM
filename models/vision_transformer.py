@@ -1,7 +1,9 @@
 import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 
 # https://github.com/huggingface/transformers/blob/main/src/transformers/models/siglip/modeling_siglip.py#L245
 class ViTPatchEmbeddings(nn.Module):
@@ -170,9 +172,9 @@ class ViT(nn.Module):
     # Load the model from a pretrained HuggingFace model (we don't want to have to train the Vision Backbone from scratch)
     @classmethod
     def from_pretrained(cls, cfg):
-        from transformers import SiglipVisionConfig
-        from huggingface_hub import hf_hub_download
         import safetensors
+        from huggingface_hub import hf_hub_download
+        from transformers import SiglipVisionConfig
 
         hf_config = SiglipVisionConfig.from_pretrained(cfg.vit_model_type)
         cfg.vit_dropout=hf_config.attention_dropout

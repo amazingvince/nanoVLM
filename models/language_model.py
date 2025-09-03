@@ -1,7 +1,9 @@
 import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 
 # https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/modeling_llama.py#L69
 class RMSNorm(nn.Module):
@@ -537,11 +539,11 @@ class LanguageModel(nn.Module):
     # Load the model from a pretrained HuggingFace model (we don't want to have to train the Language Backbone from scratch)
     @classmethod
     def from_pretrained(cls, cfg):
-        from transformers import AutoConfig
-        from huggingface_hub import hf_hub_download
         import safetensors
         import torch.nn.init as init
-                
+        from huggingface_hub import hf_hub_download
+        from transformers import AutoConfig
+
         # Load the HuggingFace config
         hf_config = AutoConfig.from_pretrained(cfg.lm_model_type)
         

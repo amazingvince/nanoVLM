@@ -1,28 +1,24 @@
 import argparse
 import contextlib
 import math
+import os
 import random
 import time
 from dataclasses import asdict
 from statistics import mean
 
 import numpy
+import PIL.PngImagePlugin
 import torch
 import torch.distributed as dist
 import torch.optim as optim
-import wandb
-from datasets import concatenate_datasets, get_dataset_config_names, load_dataset
+from datasets import (concatenate_datasets, get_dataset_config_names,
+                      load_dataset)
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 
-torch.manual_seed(0)
-if torch.cuda.is_available():
-    torch.cuda.manual_seed_all(0)
-
-# Otherwise, the tokenizer will throw a warning
-import os
-
 import models.config as config
+import wandb
 from data.advanced_datasets import ConstantLengthDataset
 from data.collators import VQACollator
 from data.data_utils import synchronized_dataloader_step
@@ -30,12 +26,29 @@ from data.datasets import VQADataset
 from data.processors import get_image_processor, get_tokenizer
 from models.vision_language_model import VisionLanguageModel
 
+torch.manual_seed(0)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(0)
+
+# Otherwise, the tokenizer will throw a warning
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # Fix for "Decompressed data too large" error with certain PNGs
-import PIL.PngImagePlugin
 
 PIL.PngImagePlugin.MAX_TEXT_CHUNK = 100 * 1024 * 1024
+
+
+# Set thread limits if configured
+def set_thread_limits(max_threads):
+    if max_threads is not None and max_threads > 0:
+        torch.set_num_threads(max_threads)
+        if hasattr(torch, 'set_num_interop_threads'):
+            torch.set_num_interop_threads(max_threads)
+        os.environ['OMP_NUM_THREADS'] = str(max_threads)
+        os.environ['MKL_NUM_THREADS'] = str(max_threads)
+        os.environ['OPENBLAS_NUM_THREADS'] = str(max_threads)
+        os.environ['VECLIB_MAXIMUM_THREADS'] = str(max_threads)
+        os.environ['NUMEXPR_NUM_THREADS'] = str(max_threads)
 
 
 def seed_worker(worker_id):
@@ -116,7 +129,7 @@ def get_dataloaders(train_cfg, vlm_cfg):
             train_ds = load_dataset(
                 train_cfg.train_dataset_path,
                 dataset_name,
-                num_proc=max(1, int(os.cpu_count() // 2)),
+                num_proc=min(train_cfg.num_workers, max(1, int(os.cpu_count() // 2))) if train_cfg.num_workers > 0 else 1,
             )
             train_ds["train"][0]  # Check if the dataset is loaded correctly
             combined_train_data.append(train_ds["train"])
@@ -186,7 +199,7 @@ def get_dataloaders(train_cfg, vlm_cfg):
         train_dataset,
         batch_size=train_cfg.batch_size,  # =per device BS in DDP
         collate_fn=vqa_collator,
-        num_workers=8,
+        num_workers=train_cfg.num_workers,
         pin_memory=True,
         drop_last=True,
         worker_init_fn=seed_worker,
@@ -205,7 +218,7 @@ def get_dataloaders(train_cfg, vlm_cfg):
         batch_size=train_cfg.batch_size,
         sampler=val_sampler,
         collate_fn=vqa_collator,
-        num_workers=8,
+        num_workers=train_cfg.num_workers,
         pin_memory=True,
         drop_last=True,
         worker_init_fn=seed_worker,
@@ -236,10 +249,10 @@ def get_lr(it, max_lr, max_steps):
 
 
 def train(train_cfg, vlm_cfg):
+    # Set thread limits before creating dataloaders
+    set_thread_limits(train_cfg.max_threads)
+    
     train_loader, val_loader = get_dataloaders(train_cfg, vlm_cfg)
-    tokenizer = get_tokenizer(
-        vlm_cfg.lm_tokenizer, vlm_cfg.vlm_extra_tokens, vlm_cfg.lm_chat_template
-    )
 
     run_name = get_run_name(train_cfg, vlm_cfg)
     total_dataset_size = len(train_loader.dataset)
@@ -711,6 +724,12 @@ def main():
     parser.add_argument(
         "--no_log_wandb", action="store_true", help="Do not log to wandb"
     )
+    parser.add_argument(
+        "--num_workers", type=int, help="Number of DataLoader worker threads (0 disables multiprocessing)"
+    )
+    parser.add_argument(
+        "--max_threads", type=int, help="Maximum number of threads for torch operations"
+    )
 
     args = parser.parse_args()
 
@@ -727,6 +746,10 @@ def main():
         train_cfg.compile = args.compile
     if args.no_log_wandb is True:
         train_cfg.log_wandb = False
+    if args.num_workers is not None:
+        train_cfg.num_workers = args.num_workers
+    if args.max_threads is not None:
+        train_cfg.max_threads = args.max_threads
 
     if args.resume_from_vlm_checkpoint and args.vlm_checkpoint_path is not None:
         train_cfg.resume_from_vlm_checkpoint = True

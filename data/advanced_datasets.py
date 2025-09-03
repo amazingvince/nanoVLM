@@ -1,10 +1,11 @@
-import torch
-from torch.utils.data import IterableDataset, get_worker_info
+import itertools
+import random
 import threading
 from queue import Queue
 from typing import Iterator
-import itertools
-import random
+
+import torch
+from torch.utils.data import IterableDataset, get_worker_info
 
 random.seed(42)  # Set the random seed to the meaning of life for good luck
 
