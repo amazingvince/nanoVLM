@@ -52,13 +52,13 @@ If you want to use `uv`:
 uv init --bare --python 3.12
 uv sync --python 3.12
 source .venv/bin/activate
-uv add torch numpy torchvision pillow datasets huggingface-hub transformers wandb
+uv add torch numpy torchvision pillow datasets huggingface-hub transformers wandb einops hf-transfer
 # Optional: for lmms-eval integration you have to install it from source, see section 'Evaluation with lmms-eval'
 ```
 
 If you prefer another environment manager, simply install these packages:  
 ```bash
-pip install torch numpy torchvision pillow datasets huggingface-hub transformers wandb
+pip install torch numpy torchvision pillow datasets huggingface-hub transformers wandb einops hf-transfer
 # Optional: for lmms-eval integration you have to install it from source, see section 'Evaluation with lmms-eval'
 
 ```
