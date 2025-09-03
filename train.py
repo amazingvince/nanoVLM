@@ -12,8 +12,7 @@ import PIL.PngImagePlugin
 import torch
 import torch.distributed as dist
 import torch.optim as optim
-from datasets import (concatenate_datasets, get_dataset_config_names,
-                      load_dataset)
+from datasets import concatenate_datasets, get_dataset_config_names, load_dataset
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 
@@ -42,13 +41,13 @@ PIL.PngImagePlugin.MAX_TEXT_CHUNK = 100 * 1024 * 1024
 def set_thread_limits(max_threads):
     if max_threads is not None and max_threads > 0:
         torch.set_num_threads(max_threads)
-        if hasattr(torch, 'set_num_interop_threads'):
+        if hasattr(torch, "set_num_interop_threads"):
             torch.set_num_interop_threads(max_threads)
-        os.environ['OMP_NUM_THREADS'] = str(max_threads)
-        os.environ['MKL_NUM_THREADS'] = str(max_threads)
-        os.environ['OPENBLAS_NUM_THREADS'] = str(max_threads)
-        os.environ['VECLIB_MAXIMUM_THREADS'] = str(max_threads)
-        os.environ['NUMEXPR_NUM_THREADS'] = str(max_threads)
+        os.environ["OMP_NUM_THREADS"] = str(max_threads)
+        os.environ["MKL_NUM_THREADS"] = str(max_threads)
+        os.environ["OPENBLAS_NUM_THREADS"] = str(max_threads)
+        os.environ["VECLIB_MAXIMUM_THREADS"] = str(max_threads)
+        os.environ["NUMEXPR_NUM_THREADS"] = str(max_threads)
 
 
 def seed_worker(worker_id):
@@ -129,7 +128,9 @@ def get_dataloaders(train_cfg, vlm_cfg):
             train_ds = load_dataset(
                 train_cfg.train_dataset_path,
                 dataset_name,
-                num_proc=min(train_cfg.num_workers, max(1, int(os.cpu_count() // 2))) if train_cfg.num_workers > 0 else 1,
+                num_proc=min(train_cfg.num_workers, max(1, int(os.cpu_count() // 2)))
+                if train_cfg.num_workers > 0
+                else 1,
             )
             train_ds["train"][0]  # Check if the dataset is loaded correctly
             combined_train_data.append(train_ds["train"])
@@ -251,7 +252,7 @@ def get_lr(it, max_lr, max_steps):
 def train(train_cfg, vlm_cfg):
     # Set thread limits before creating dataloaders
     set_thread_limits(train_cfg.max_threads)
-    
+
     train_loader, val_loader = get_dataloaders(train_cfg, vlm_cfg)
 
     run_name = get_run_name(train_cfg, vlm_cfg)
@@ -700,6 +701,31 @@ def train(train_cfg, vlm_cfg):
 
 def main():
     parser = argparse.ArgumentParser()
+
+    # Model selection arguments
+    parser.add_argument(
+        "--vision_encoder",
+        type=str,
+        choices=["siglip", "dinov3", "dinov2"],
+        default="siglip",
+        help="Vision encoder architecture to use",
+    )
+    parser.add_argument(
+        "--language_model",
+        type=str,
+        choices=["llama", "smollm", "gemma"],
+        default="smollm",
+        help="Language model architecture to use",
+    )
+    parser.add_argument(
+        "--use_preset",
+        type=str,
+        choices=["dinov3_gemma", None],
+        default=None,
+        help="Use a preset configuration (overrides vision_encoder and language_model)",
+    )
+
+    # Training arguments
     parser.add_argument(
         "--lr_mp", type=float, help="Learning rate for the mapping network"
     )
@@ -725,7 +751,9 @@ def main():
         "--no_log_wandb", action="store_true", help="Do not log to wandb"
     )
     parser.add_argument(
-        "--num_workers", type=int, help="Number of DataLoader worker threads (0 disables multiprocessing)"
+        "--num_workers",
+        type=int,
+        help="Number of DataLoader worker threads (0 disables multiprocessing)",
     )
     parser.add_argument(
         "--max_threads", type=int, help="Maximum number of threads for torch operations"
@@ -733,7 +761,35 @@ def main():
 
     args = parser.parse_args()
 
-    vlm_cfg = config.VLMConfig()
+    # Select configuration based on arguments
+    if args.use_preset == "dinov3_gemma":
+        vlm_cfg = config.get_dinov3_gemma_config()
+    else:
+        vlm_cfg = config.VLMConfig()
+
+        # Update vision encoder configuration
+        if args.vision_encoder in ["dinov3", "dinov2"]:
+            vlm_cfg.vit_architecture = "dinov3"
+            if args.vision_encoder == "dinov2":
+                vlm_cfg.vit_model_type = "facebook/dinov2-small"
+                vlm_cfg.vit_num_registers = 0  # DINOv2 doesn't have registers
+                vlm_cfg.vit_use_swiglu = False  # DINOv2 doesn't use SwiGLU
+                vlm_cfg.vit_use_rope = False
+            else:
+                # Real DINOv3!
+                vlm_cfg.vit_model_type = "facebook/dinov3-vits16plus-pretrain-lvd1689m"  # Small version
+                vlm_cfg.vit_num_registers = 4  # DINOv3 has registers
+                vlm_cfg.vit_use_swiglu = True  # DINOv3 uses SwiGLU
+                vlm_cfg.vit_use_rope = True  # DINOv3 uses RoPE
+            vlm_cfg.vit_cls_flag = True
+            vlm_cfg.mp_handle_special_tokens = True
+
+        # Update language model configuration
+        if args.language_model == "gemma":
+            vlm_cfg.lm_architecture = "gemma"
+            vlm_cfg.lm_model_type = "google/gemma-2-2b-it"
+            vlm_cfg.lm_tokenizer = "google/gemma-2-2b-it"
+
     train_cfg = config.TrainConfig()
 
     if args.lr_mp is not None:
