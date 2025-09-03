@@ -6,23 +6,88 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class VisionRotaryEmbedding(nn.Module):
-    """Rotary embeddings for vision transformer (DINOv3)"""
+class DropPath(nn.Module):
+    """Stochastic Depth / DropPath for DINOv3"""
 
-    def __init__(self, dim: int, base: float = 10000.0):
+    def __init__(self, drop_prob: float = 0.0):
         super().__init__()
-        self.dim = dim
-        self.base = base
-        inv_freq = 1.0 / (
-            self.base ** (torch.arange(0, self.dim, 2).float() / self.dim)
-        )
-        self.register_buffer("inv_freq", inv_freq)
+        self.drop_prob = drop_prob
 
-    def forward(self, seq_len: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        t = torch.arange(seq_len, device=self.inv_freq.device).float()
-        freqs = torch.outer(t, self.inv_freq)
-        emb = torch.cat([freqs, freqs], dim=-1)
-        return torch.cos(emb), torch.sin(emb)
+    def forward(self, x):
+        if self.drop_prob == 0.0 or not self.training:
+            return x
+        keep_prob = 1 - self.drop_prob
+        # Work with diff dim tensors (2D/3D/4D)
+        shape = (x.shape[0],) + (1,) * (x.ndim - 1)
+        random_tensor = keep_prob + torch.rand(shape, dtype=x.dtype, device=x.device)
+        random_tensor.floor_()  # binarize
+        output = x.div(keep_prob) * random_tensor
+        return output
+
+
+class LayerScale(nn.Module):
+    """LayerScale for DINOv3 - learnable per-channel scaling"""
+
+    def __init__(self, dim: int, init_value: float = 1.0):
+        super().__init__()
+        self.lambda_param = nn.Parameter(init_value * torch.ones(dim))
+
+    def forward(self, x):
+        return x * self.lambda_param
+
+
+def get_2d_sincos_pos_embed(embed_dim, grid_size, cls_token=False):
+    """
+    Create 2D sin/cos positional embeddings.
+    Args:
+        embed_dim: embedding dimension
+        grid_size: int or (int, int) for height and width
+        cls_token: if True, add cls token position
+    Returns:
+        pos_embed: [grid_size*grid_size, embed_dim] or [1+grid_size*grid_size, embed_dim]
+    """
+    if isinstance(grid_size, int):
+        grid_h = grid_w = grid_size
+    else:
+        grid_h, grid_w = grid_size
+
+    grid_h = torch.arange(grid_h, dtype=torch.float32)
+    grid_w = torch.arange(grid_w, dtype=torch.float32)
+    grid = torch.meshgrid(grid_w, grid_h, indexing="xy")
+    grid = torch.stack(grid, dim=0)
+    grid = grid.reshape([2, 1, grid_h.shape[0], grid_w.shape[0]])
+
+    pos_embed = get_2d_sincos_pos_embed_from_grid(embed_dim, grid)
+    if cls_token:
+        pos_embed = torch.cat([torch.zeros([1, embed_dim]), pos_embed], dim=0)
+    return pos_embed
+
+
+def get_2d_sincos_pos_embed_from_grid(embed_dim, grid):
+    """Generate sin/cos embeddings from grid positions."""
+    assert embed_dim % 2 == 0
+    # use half of dimensions to encode grid_h
+    emb_h = get_1d_sincos_pos_embed_from_grid(embed_dim // 2, grid[0])  # (H*W, D/2)
+    emb_w = get_1d_sincos_pos_embed_from_grid(embed_dim // 2, grid[1])  # (H*W, D/2)
+    emb = torch.cat([emb_h, emb_w], dim=1)  # (H*W, D)
+    return emb
+
+
+def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):
+    """Generate 1D sin/cos embeddings."""
+    assert embed_dim % 2 == 0
+    omega = torch.arange(embed_dim // 2, dtype=torch.float32)
+    omega /= embed_dim / 2.0
+    omega = 1.0 / 10000**omega  # (D/2,)
+
+    pos = pos.reshape(-1)  # (M,)
+    out = torch.outer(pos, omega)  # (M, D/2)
+
+    emb_sin = torch.sin(out)  # (M, D/2)
+    emb_cos = torch.cos(out)  # (M, D/2)
+
+    emb = torch.cat([emb_sin, emb_cos], dim=1)  # (M, D)
+    return emb
 
 
 # https://github.com/huggingface/transformers/blob/main/src/transformers/models/siglip/modeling_siglip.py#L245
@@ -58,8 +123,10 @@ class ViTPatchEmbeddings(nn.Module):
                 torch.zeros(1, self.num_registers, self.embd_dim)
             )
 
-        # Position embeddings (only for non-RoPE models)
-        if not self.use_rope:
+        # Position embeddings (only for SigLIP and similar models, not DINOv3)
+        # DINOv3 uses dynamic sin/cos embeddings, not learned parameters
+        self.use_sincos_pos = getattr(cfg, "vit_use_sincos_pos", False)
+        if not self.use_rope and not self.use_sincos_pos:
             num_positions = self.num_patches
             if self.cls_flag:
                 num_positions += 1
@@ -90,8 +157,36 @@ class ViTPatchEmbeddings(nn.Module):
                 # Insert registers at the beginning
                 x = torch.cat((register_tokens, x), dim=1)
 
-        # Add position embeddings for non-RoPE models
-        if not self.use_rope:
+        # Add position embeddings
+        if self.use_sincos_pos:
+            # DINOv3 uses sin/cos embeddings computed dynamically
+            grid_size = self.img_size // self.patch_size
+            pos_embed = get_2d_sincos_pos_embed(
+                self.embd_dim,
+                grid_size,
+                cls_token=False,  # We'll handle CLS separately
+            )
+            pos_embed = pos_embed.to(x.device).to(x.dtype)
+
+            # Apply position embeddings only to patch tokens
+            if self.cls_flag and self.num_registers > 0:
+                # CLS + registers + patches
+                x[:, 1 + self.num_registers :] = x[
+                    :, 1 + self.num_registers :
+                ] + pos_embed.unsqueeze(0)
+            elif self.cls_flag:
+                # CLS + patches
+                x[:, 1:] = x[:, 1:] + pos_embed.unsqueeze(0)
+            elif self.num_registers > 0:
+                # registers + patches
+                x[:, self.num_registers :] = x[
+                    :, self.num_registers :
+                ] + pos_embed.unsqueeze(0)
+            else:
+                # Just patches
+                x = x + pos_embed.unsqueeze(0)
+        elif not self.use_rope:
+            # Standard learned position embeddings (SigLIP)
             x = x + self.position_embedding
 
         return x
@@ -229,7 +324,7 @@ class ViTMLP(nn.Module):
 
 # https://github.com/karpathy/nanoGPT/blob/master/model.py#L94
 class ViTBlock(nn.Module):
-    def __init__(self, cfg):
+    def __init__(self, cfg, drop_path_rate=0.0):
         super().__init__()
         self.ln1 = nn.LayerNorm(cfg.vit_hidden_dim, eps=cfg.vit_ln_eps)
         self.attn = ViTMultiHeadAttention(cfg)
@@ -241,9 +336,26 @@ class ViTBlock(nn.Module):
         else:
             self.mlp = ViTMLP(cfg)  # Original MLP
 
+        # Add LayerScale if configured (DINOv3)
+        self.use_layer_scale = getattr(cfg, "vit_layer_scale", False)
+        if self.use_layer_scale:
+            init_value = getattr(cfg, "vit_layer_scale_init", 1.0)
+            self.layer_scale1 = LayerScale(cfg.vit_hidden_dim, init_value)
+            self.layer_scale2 = LayerScale(cfg.vit_hidden_dim, init_value)
+
+        # Add DropPath if configured (stochastic depth)
+        self.drop_path = (
+            DropPath(drop_path_rate) if drop_path_rate > 0.0 else nn.Identity()
+        )
+
     def forward(self, x):
-        x = x + self.attn(self.ln1(x))
-        x = x + self.mlp(self.ln2(x))
+        # Attention block with optional LayerScale and DropPath
+        if self.use_layer_scale:
+            x = x + self.drop_path(self.layer_scale1(self.attn(self.ln1(x))))
+            x = x + self.drop_path(self.layer_scale2(self.mlp(self.ln2(x))))
+        else:
+            x = x + self.drop_path(self.attn(self.ln1(x)))
+            x = x + self.drop_path(self.mlp(self.ln2(x)))
         return x
 
 
@@ -254,7 +366,13 @@ class ViT(nn.Module):
         self.patch_embedding = ViTPatchEmbeddings(cfg)
         self.cls_flag = cfg.vit_cls_flag
         self.dropout = nn.Dropout(cfg.vit_dropout)
-        self.blocks = nn.ModuleList([ViTBlock(cfg) for _ in range(cfg.vit_n_blocks)])
+
+        # Create blocks with stochastic depth (linearly increasing drop rate)
+        drop_path_rate = getattr(cfg, "vit_drop_path_rate", 0.0)
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, cfg.vit_n_blocks)]
+        self.blocks = nn.ModuleList(
+            [ViTBlock(cfg, dpr[i]) for i in range(cfg.vit_n_blocks)]
+        )
         self.layer_norm = nn.LayerNorm(cfg.vit_hidden_dim, eps=cfg.vit_ln_eps)
 
         self.apply(self._init_weights)
@@ -314,8 +432,15 @@ class ViT(nn.Module):
             cfg.vit_use_swiglu = getattr(
                 hf_config, "use_gated_mlp", getattr(hf_config, "use_swiglu_ffn", False)
             )
-            cfg.vit_use_rope = False  # DINOv2 doesn't use RoPE
+            # DINOv3 uses sin/cos embeddings, not RoPE or learned embeddings
+            cfg.vit_use_rope = False
+            cfg.vit_use_sincos_pos = True  # DINOv3 uses sin/cos position embeddings
             cfg.vit_ln_eps = getattr(hf_config, "layer_norm_eps", 1e-6)
+
+            # DINOv3 features
+            cfg.vit_layer_scale = True  # DINOv3 uses LayerScale
+            cfg.vit_layer_scale_init = getattr(hf_config, "layerscale_value", 1.0)
+            cfg.vit_drop_path_rate = getattr(hf_config, "drop_path_rate", 0.0)
         else:
             # SigLIP config
             from transformers import SiglipVisionConfig
@@ -345,9 +470,26 @@ class ViT(nn.Module):
                 "embeddings.patch_embeddings.bias": "patch_embedding.conv.bias",
                 "embeddings.cls_token": "patch_embedding.cls_token",
                 "embeddings.register_tokens": "patch_embedding.register_tokens",
+                "norm.weight": "layer_norm.weight",
+                "norm.bias": "layer_norm.bias",
             }
             # Add layer mappings for DINOv3
             for i in range(cfg.vit_n_blocks):
+                # Layer norms
+                mapping[f"layer.{i}.norm1.weight"] = f"blocks.{i}.ln1.weight"
+                mapping[f"layer.{i}.norm1.bias"] = f"blocks.{i}.ln1.bias"
+                mapping[f"layer.{i}.norm2.weight"] = f"blocks.{i}.ln2.weight"
+                mapping[f"layer.{i}.norm2.bias"] = f"blocks.{i}.ln2.bias"
+
+                # LayerScale parameters
+                if cfg.vit_layer_scale:
+                    mapping[f"layer.{i}.layer_scale1.lambda1"] = (
+                        f"blocks.{i}.layer_scale1.lambda_param"
+                    )
+                    mapping[f"layer.{i}.layer_scale2.lambda1"] = (
+                        f"blocks.{i}.layer_scale2.lambda_param"
+                    )
+
                 # Attention - q,k,v handled separately in QKV concatenation
                 mapping[f"layer.{i}.attention.o_proj.weight"] = (
                     f"blocks.{i}.attn.out_proj.weight"

@@ -22,8 +22,12 @@ class VLMConfig:
     # DINOv3-specific parameters
     vit_num_registers: int = 0  # Set to 4 for DINOv3
     vit_use_swiglu: bool = False  # True for DINOv3
-    vit_use_rope: bool = False  # True for DINOv3
-    vit_rope_base: float = 10000.0  # RoPE base for vision
+    vit_use_rope: bool = False  # DINOv3 doesn't actually use RoPE
+    vit_use_sincos_pos: bool = False  # DINOv3 uses sin/cos embeddings
+    vit_rope_base: float = 10000.0  # RoPE base for vision (if used)
+    vit_layer_scale: bool = False  # True for DINOv3
+    vit_layer_scale_init: float = 1.0  # LayerScale initialization
+    vit_drop_path_rate: float = 0.0  # Stochastic depth rate
 
     # === Language Model Configuration ===
     # Model selection
@@ -131,7 +135,11 @@ def get_dinov3_gemma_config():
         vit_cls_flag=True,
         vit_num_registers=4,  # DINOv3 has 4 register tokens
         vit_use_swiglu=True,  # DINOv3 DOES use gated MLP (SwiGLU)
-        vit_use_rope=True,  # DINOv3 uses RoPE with theta=100
+        vit_use_rope=False,  # DINOv3 doesn't use RoPE (uses sin/cos instead)
+        vit_use_sincos_pos=True,  # DINOv3 uses sin/cos position embeddings
+        vit_layer_scale=True,  # DINOv3 uses LayerScale
+        vit_layer_scale_init=1.0,
+        vit_drop_path_rate=0.0,  # No dropout in pretrained model
         vit_img_size=224,  # DINOv3 default image size
         vit_patch_size=16,
         # Dimensions will be auto-detected from model
