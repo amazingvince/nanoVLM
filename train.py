@@ -622,19 +622,28 @@ def train(train_cfg, vlm_cfg):
                 else:
                     batch_loss_gathered = batch_loss
 
-                # MASTER ONLY: Log to wandb
-                if train_cfg.log_wandb and is_master():
-                    run.log(
-                        {
-                            "batch_loss": batch_loss_gathered,
-                            **(
-                                {"grad_norm": grad_norm}
-                                if train_cfg.max_grad_norm is not None
-                                else {}
-                            ),
-                        },
-                        step=global_step,
-                    )
+                # MASTER ONLY: Log to console and wandb
+                if is_master():
+                    # Console logging every N steps (configurable)
+                    console_log_interval = getattr(train_cfg, 'console_log_interval', 100)
+                    if global_step % console_log_interval == 0:
+                        lr_str = f"LR: {adj_lr_mp:.2e}" if 'adj_lr_mp' in locals() else ""
+                        grad_str = f"Grad: {grad_norm:.3f}" if train_cfg.max_grad_norm is not None else ""
+                        print(f"Step {global_step}/{train_cfg.max_training_steps} | Loss: {batch_loss_gathered:.4f} | {lr_str} | {grad_str} | Tokens/s: {tokens_per_second:.0f}")
+                    
+                    # Wandb logging
+                    if train_cfg.log_wandb:
+                        run.log(
+                            {
+                                "batch_loss": batch_loss_gathered,
+                                **(
+                                    {"grad_norm": grad_norm}
+                                    if train_cfg.max_grad_norm is not None
+                                    else {}
+                                ),
+                            },
+                            step=global_step,
+                        )
 
             if is_update_step:
                 global_step += 1
@@ -761,6 +770,9 @@ def main():
     parser.add_argument(
         "--max_threads", type=int, help="Maximum number of threads for torch operations"
     )
+    parser.add_argument(
+        "--console_log_interval", type=int, help="Print loss to console every N steps"
+    )
 
     args = parser.parse_args()
 
@@ -810,6 +822,8 @@ def main():
         train_cfg.num_workers = args.num_workers
     if args.max_threads is not None:
         train_cfg.max_threads = args.max_threads
+    if args.console_log_interval is not None:
+        train_cfg.console_log_interval = args.console_log_interval
 
     if args.resume_from_vlm_checkpoint and args.vlm_checkpoint_path is not None:
         train_cfg.resume_from_vlm_checkpoint = True
