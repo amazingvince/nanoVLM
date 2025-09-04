@@ -22,6 +22,37 @@ nanoVLM is the simplest repository for training/finetuning a small sized Vision-
 
 Similar to Andrej Karpathy's nanoGPT, we wanted to equip the community with a very simple implementation and training script for Vision Language Models. We do not claim this to be a new SOTA model, rather an educational effort that packs quite a bit of punch if you have the right hardware! You should be able to tweak and play around with the code in no time.
 
+## Supported Model Architectures
+
+nanoVLM now supports flexible combinations of vision encoders and language models:
+
+### Vision Encoders
+- **SigLIP** (default): Google's vision transformer optimized for vision-language tasks
+  - Model: `google/siglip2-base-patch16-512`
+  - Input: 512×512 images → 1024 patches → 64 tokens after projection
+  - Position embeddings: Learned
+  
+- **DINOv3**: Meta's latest self-supervised vision transformer
+  - Model: `facebook/dinov3-vits16plus-pretrain-lvd1689m`
+  - Input: 224×224 images → 196 patches + 4 registers + 1 CLS → 49 tokens after projection
+  - Position embeddings: RoPE with patch center coordinates
+  - Features: LayerScale, SwiGLU FFN, register tokens
+  
+- **DINOv2**: Previous generation DINO model
+  - Model: `facebook/dinov2-vits14`
+  - Input: 224×224 images
+  - Position embeddings: Learned
+
+### Language Models
+- **SmolLM** (default): Hugging Face's efficient small language model
+  - Models: `SmolLM2-135M-Instruct`, `SmolLM2-360M-Instruct`
+  - Architecture: Llama-style with RMSNorm
+  
+- **Gemma**: Google's efficient language models
+  - Model: `google/gemma-3-270m-it`
+  - Architecture: Custom attention with head_dim=256, RoPE
+  - Vocabulary: 256k tokens
+
 
 ## What can nanoVLM do?
 
@@ -74,12 +105,55 @@ Dependencies:
 ## Training
 
 To train nanoVLM, you can simply use the provided training script. After training, your model gets uploaded to the Hub!
+
+### Default Configuration (SigLIP + SmolLM)
 ```bash
 wandb login --relogin
 huggingface-cli login
 python train.py
 ```
-which will use the default `models/config.py`.
+This uses the default `models/config.py` with SigLIP vision encoder and SmolLM language model.
+
+### Alternative Configurations
+
+The repository now supports multiple vision encoder and language model combinations:
+
+#### DINOv3 + Gemma-3-270M
+```bash
+python train.py --use_preset dinov3_gemma
+```
+This configuration uses:
+- **Vision**: DINOv3 (facebook/dinov3-vits16plus-pretrain-lvd1689m) with RoPE position embeddings
+- **Language**: Gemma-3-270M-IT (google/gemma-3-270m-it)
+- **Image size**: 224x224 (processed as single image with 16x16 patches)
+
+#### Custom Vision/Language Combinations
+```bash
+# Use DINOv3 vision with default SmolLM language model
+python train.py --vision_encoder dinov3 --language_model smollm
+
+# Use DINOv2 vision with Gemma language model
+python train.py --vision_encoder dinov2 --language_model gemma
+
+# Available options:
+# --vision_encoder: siglip (default), dinov3, dinov2
+# --language_model: llama/smollm (default), gemma
+```
+
+### Training Options
+```bash
+# Adjust learning rates
+python train.py --lr_mp 0.00512 --lr_backbones 5e-05
+
+# Enable/disable compilation (disabled by default for compatibility)
+python train.py --compile True
+
+# Show training progress in console
+python train.py --console_log_interval 10  # Log every 10 steps
+
+# Resume from checkpoint
+python train.py --resume_from_vlm_checkpoint path/to/checkpoint.pth
+```
 
 ## Generate
 
