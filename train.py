@@ -263,14 +263,6 @@ def train(train_cfg, vlm_cfg):
     if train_cfg.log_wandb and is_master():
         if train_cfg.data_cutoff_idx is None:
             run_name = run_name.replace("full_ds", f"{total_dataset_size}samples")
-    if train_cfg.log_wandb and is_master():
-        run = wandb.init(
-            entity=train_cfg.wandb_entity,
-            project="nanoVLM",
-            config={"VLMConfig": asdict(vlm_cfg), "TrainConfig": asdict(train_cfg)},
-            name=run_name,
-        )
-
     # Initialize model
     if train_cfg.resume_from_vlm_checkpoint:
         model = VisionLanguageModel.from_pretrained(vlm_cfg.vlm_checkpoint_path)
@@ -278,6 +270,16 @@ def train(train_cfg, vlm_cfg):
         model = VisionLanguageModel(
             vlm_cfg, load_backbone=vlm_cfg.vlm_load_backbone_weights
         )
+
+    if train_cfg.log_wandb and is_master():
+        run = wandb.init(
+            entity=train_cfg.wandb_entity,
+            project="nanoVLM",
+            config={"VLMConfig": asdict(vlm_cfg), "TrainConfig": asdict(train_cfg)},
+            name=run_name,
+        )
+        # Watch all model gradients and parameters
+        wandb.watch(model, log="all", log_freq=train_cfg.wandb_log_steps)
 
     if is_master():
         print(
@@ -599,7 +601,7 @@ def train(train_cfg, vlm_cfg):
                     )
 
                 # MASTER ONLY: Log to wandb
-                if train_cfg.log_wandb and is_master():
+                if train_cfg.log_wandb and is_master() and global_step % train_cfg.wandb_log_steps == 0:
                     run.log(
                         {
                             **{
@@ -632,7 +634,7 @@ def train(train_cfg, vlm_cfg):
                         print(f"Step {global_step}/{train_cfg.max_training_steps} | Loss: {batch_loss_gathered:.4f} | {lr_str} | {grad_str} | Tokens/s: {tokens_per_second:.0f}")
                     
                     # Wandb logging
-                    if train_cfg.log_wandb:
+                    if train_cfg.log_wandb and global_step % train_cfg.wandb_log_steps == 0:
                         run.log(
                             {
                                 "batch_loss": batch_loss_gathered,

@@ -1,6 +1,14 @@
 from dataclasses import dataclass, field
 
 
+def round_up_to_multiple(x: int, N: int = 128) -> int:
+    """
+    Rounds up integer x to the nearest multiple of N (default: 128).
+    This improves GPU efficiency for matrix operations.
+    """
+    return ((x + N - 1) // N) * N
+
+
 @dataclass
 class VLMConfig:
     # === Vision Encoder Configuration ===
@@ -46,9 +54,7 @@ class VLMConfig:
     extra_token_amount: int = (
         17  # Number of extra tokens for the VLM (image start, image end, image token)
     )
-    lm_vocab_size: int = (
-        lm_base_vocab_size + extra_token_amount
-    )  # Not a great way to do this, but it works for now (vlm_extra_tokens cannot be a dict, since this is mutable, and a Field has no len() function)
+    lm_vocab_size: int = field(init=False)  # Will be computed with rounding for GPU efficiency
     lm_n_heads: int = 15
     lm_n_kv_heads: int = 5
     lm_dropout: float = 0.0
@@ -90,6 +96,12 @@ class VLMConfig:
     vlm_load_backbone_weights: bool = True
     vlm_checkpoint_path: str = "checkpoints"
     hf_repo_name: str = "nanoVLM"
+    
+    def __post_init__(self):
+        # Round vocab size to nearest multiple of 128 for GPU efficiency
+        self.lm_vocab_size = round_up_to_multiple(
+            self.lm_base_vocab_size + self.extra_token_amount
+        )
 
 
 @dataclass
@@ -115,6 +127,7 @@ class TrainConfig:
     train_dataset_name: tuple[str, ...] = ("all",)
     wandb_entity: str = None  # Leave as None to use your default wandb entity
     log_wandb: bool = True
+    wandb_log_steps: int = 5  # Log to wandb every N steps (default 5 for efficiency)
     use_lmms_eval: bool = True  # Use lmms-eval for evaluation
     lmms_eval_tasks: str = "mmstar,mmmu,ocrbench,textvqa"  # Pass additional task as one string, seperated by commas without spaces (e.g. 'mmstar,mmmu,ocrbench')
     lmms_eval_limit: int = 2000
@@ -152,8 +165,8 @@ def get_dinov3_gemma_config():
         # Dimensions will be auto-detected from model config
         # Just set vocab to handle extra tokens
         lm_base_vocab_size=262144,  # Gemma-3 actual vocab
-        lm_vocab_size=262144 + 17,  # With extra tokens
         extra_token_amount=17,
+        # lm_vocab_size will be auto-computed and rounded in __post_init__
         # Modality projector - for 224x224 images with patch_size=16
         mp_handle_special_tokens=True,
         mp_pixel_shuffle_factor=2,
