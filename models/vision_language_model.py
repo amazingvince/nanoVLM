@@ -82,11 +82,13 @@ class VisionLanguageModel(nn.Module):
 
         # The updated_token_embd is now the token_embd with image parts replaced.
         # The attention_mask comes from the collator and should already cover the full sequence.
-        logits, _ = self.decoder(updated_token_embd, attention_mask=attention_mask)
+        hidden_states, _ = self.decoder(updated_token_embd, attention_mask=attention_mask)
 
+        # Always apply LM head to get logits
+        logits = self.decoder.head(hidden_states)
+        
         loss = None
         if targets is not None:
-            logits = self.decoder.head(logits)  # Apply LM head
             # Loss is calculated over all tokens, but `targets` (labels) will have -100 for non-answer tokens.
             # No need to slice logits based on image embedding size here, as the target mask handles it.
             loss = F.cross_entropy(

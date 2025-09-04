@@ -1,5 +1,4 @@
 import math
-from typing import Tuple
 
 import torch
 import torch.nn as nn
@@ -36,61 +35,82 @@ class LayerScale(nn.Module):
         return x * self.lambda_param
 
 
-def get_2d_sincos_pos_embed(embed_dim, grid_size, cls_token=False):
+def get_patches_center_coordinates(num_patches_h, num_patches_w, dtype, device):
     """
-    Create 2D sin/cos positional embeddings.
-    Args:
-        embed_dim: embedding dimension
-        grid_size: int or (int, int) for height and width
-        cls_token: if True, add cls token position
-    Returns:
-        pos_embed: [grid_size*grid_size, embed_dim] or [1+grid_size*grid_size, embed_dim]
+    Computes the 2D coordinates of the centers of image patches, normalized to the range [-1, +1].
+    The center of each patch is exactly halfway between its top-left and bottom-right corners.
     """
-    if isinstance(grid_size, int):
-        grid_h = grid_w = grid_size
+    coords_h = torch.arange(0.5, num_patches_h, dtype=dtype, device=device)
+    coords_w = torch.arange(0.5, num_patches_w, dtype=dtype, device=device)
+    coords_h = coords_h / num_patches_h
+    coords_w = coords_w / num_patches_w
+    # (height, width, 2) -> (height * width, 2)
+    coords = torch.stack(torch.meshgrid(coords_h, coords_w, indexing="ij"), dim=-1)
+    coords = coords.flatten(0, 1)
+    # Shift range [0, 1] to [-1, +1]
+    coords = 2.0 * coords - 1.0
+    return coords
+
+
+def rotate_half(x):
+    """Rotates half the hidden dims of the input for RoPE."""
+    x1 = x[..., : x.shape[-1] // 2]
+    x2 = x[..., x.shape[-1] // 2 :]
+    return torch.cat((-x2, x1), dim=-1)
+
+
+def apply_rotary_pos_emb(q, k, cos, sin, num_prefix_tokens=0):
+    """Applies RoPE to query and key tensors, but only to patch tokens."""
+    if num_prefix_tokens > 0:
+        # Split prefix tokens (CLS + register) from patch tokens
+        q_prefix, q_patches = q.split((num_prefix_tokens, q.shape[-2] - num_prefix_tokens), dim=-2)
+        k_prefix, k_patches = k.split((num_prefix_tokens, k.shape[-2] - num_prefix_tokens), dim=-2)
+        
+        # Apply RoPE only to patch tokens
+        q_patches = (q_patches * cos) + (rotate_half(q_patches) * sin)
+        k_patches = (k_patches * cos) + (rotate_half(k_patches) * sin)
+        
+        # Concatenate back
+        q = torch.cat((q_prefix, q_patches), dim=-2)
+        k = torch.cat((k_prefix, k_patches), dim=-2)
     else:
-        grid_h, grid_w = grid_size
-
-    grid_h = torch.arange(grid_h, dtype=torch.float32)
-    grid_w = torch.arange(grid_w, dtype=torch.float32)
-    grid = torch.meshgrid(grid_w, grid_h, indexing="xy")
-    grid = torch.stack(grid, dim=0)
-    grid = grid.reshape([2, 1, grid_h.shape[0], grid_w.shape[0]])
-
-    pos_embed = get_2d_sincos_pos_embed_from_grid(embed_dim, grid)
-    if cls_token:
-        pos_embed = torch.cat([torch.zeros([1, embed_dim]), pos_embed], dim=0)
-    return pos_embed
+        # Apply RoPE to all tokens
+        q = (q * cos) + (rotate_half(q) * sin)
+        k = (k * cos) + (rotate_half(k) * sin)
+    
+    return q, k
 
 
-def get_2d_sincos_pos_embed_from_grid(embed_dim, grid):
-    """Generate sin/cos embeddings from grid positions."""
-    assert embed_dim % 2 == 0
-    # use half of dimensions to encode grid_h
-    emb_h = get_1d_sincos_pos_embed_from_grid(embed_dim // 2, grid[0])  # (H*W, D/2)
-    emb_w = get_1d_sincos_pos_embed_from_grid(embed_dim // 2, grid[1])  # (H*W, D/2)
-    emb = torch.cat([emb_h, emb_w], dim=1)  # (H*W, D)
-    return emb
+class DINOv3RoPEPositionEmbedding(nn.Module):
+    """DINOv3-style RoPE position embeddings using patch center coordinates."""
+    
+    def __init__(self, cfg):
+        super().__init__()
+        self.cfg = cfg
+        self.base = getattr(cfg, 'vit_rope_theta', 100.0)  # Default from DINOv3
+        self.head_dim = cfg.vit_hidden_dim // cfg.vit_n_heads
+        
+        # Pre-compute inverse frequencies
+        inv_freq = 1 / self.base ** torch.arange(0, 1, 4 / self.head_dim, dtype=torch.float32)
+        self.register_buffer('inv_freq', inv_freq, persistent=False)
+    
+    def forward(self, num_patches_h, num_patches_w, dtype, device):
+        """Generate cos/sin embeddings for the given patch grid."""
+        # Get patch center coordinates normalized to [-1, +1]
+        patch_coords = get_patches_center_coordinates(num_patches_h, num_patches_w, torch.float32, device)
+        
+        # Apply inverse frequencies to get angles
+        # (height * width, 2, head_dim/4) -> (height * width, head_dim/2) -> (height * width, head_dim)
+        angles = 2 * math.pi * patch_coords[:, :, None] * self.inv_freq[None, None, :]
+        angles = angles.flatten(1, 2)
+        angles = angles.tile(2)  # Repeat to match head_dim
+        
+        cos = torch.cos(angles).to(dtype=dtype)
+        sin = torch.sin(angles).to(dtype=dtype)
+        
+        return cos, sin
 
 
-def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):
-    """Generate 1D sin/cos embeddings."""
-    assert embed_dim % 2 == 0
-    omega = torch.arange(embed_dim // 2, dtype=torch.float32)
-    omega /= embed_dim / 2.0
-    omega = 1.0 / 10000**omega  # (D/2,)
-
-    pos = pos.reshape(-1)  # (M,)
-    out = torch.outer(pos, omega)  # (M, D/2)
-
-    emb_sin = torch.sin(out)  # (M, D/2)
-    emb_cos = torch.cos(out)  # (M, D/2)
-
-    emb = torch.cat([emb_sin, emb_cos], dim=1)  # (M, D)
-    return emb
-
-
-# https://github.com/huggingface/transformers/blob/main/src/transformers/models/siglip/modeling_siglip.py#L245
 class ViTPatchEmbeddings(nn.Module):
     def __init__(self, cfg):
         super().__init__()
@@ -100,10 +120,8 @@ class ViTPatchEmbeddings(nn.Module):
         self.num_patches = (self.img_size // self.patch_size) ** 2
         self.cls_flag = cfg.vit_cls_flag
         self.embd_dim = cfg.vit_hidden_dim
-        self.use_rope = cfg.vit_use_rope if hasattr(cfg, "vit_use_rope") else False
-        self.num_registers = (
-            cfg.vit_num_registers if hasattr(cfg, "vit_num_registers") else 0
-        )
+        self.use_dinov3_rope = getattr(cfg, "vit_architecture", "siglip") == "dinov3"
+        self.num_registers = getattr(cfg, "vit_num_registers", 0)
 
         # Conv layer to extract the patches
         self.conv = nn.Conv2d(
@@ -123,10 +141,8 @@ class ViTPatchEmbeddings(nn.Module):
                 torch.zeros(1, self.num_registers, self.embd_dim)
             )
 
-        # Position embeddings (only for SigLIP and similar models, not DINOv3)
-        # DINOv3 uses dynamic sin/cos embeddings, not learned parameters
-        self.use_sincos_pos = getattr(cfg, "vit_use_sincos_pos", False)
-        if not self.use_rope and not self.use_sincos_pos:
+        # Position embeddings - DINOv3 uses RoPE in attention, SigLIP uses learned embeddings
+        if not self.use_dinov3_rope:
             num_positions = self.num_patches
             if self.cls_flag:
                 num_positions += 1
@@ -157,35 +173,8 @@ class ViTPatchEmbeddings(nn.Module):
                 # Insert registers at the beginning
                 x = torch.cat((register_tokens, x), dim=1)
 
-        # Add position embeddings
-        if self.use_sincos_pos:
-            # DINOv3 uses sin/cos embeddings computed dynamically
-            grid_size = self.img_size // self.patch_size
-            pos_embed = get_2d_sincos_pos_embed(
-                self.embd_dim,
-                grid_size,
-                cls_token=False,  # We'll handle CLS separately
-            )
-            pos_embed = pos_embed.to(x.device).to(x.dtype)
-
-            # Apply position embeddings only to patch tokens
-            if self.cls_flag and self.num_registers > 0:
-                # CLS + registers + patches
-                x[:, 1 + self.num_registers :] = x[
-                    :, 1 + self.num_registers :
-                ] + pos_embed.unsqueeze(0)
-            elif self.cls_flag:
-                # CLS + patches
-                x[:, 1:] = x[:, 1:] + pos_embed.unsqueeze(0)
-            elif self.num_registers > 0:
-                # registers + patches
-                x[:, self.num_registers :] = x[
-                    :, self.num_registers :
-                ] + pos_embed.unsqueeze(0)
-            else:
-                # Just patches
-                x = x + pos_embed.unsqueeze(0)
-        elif not self.use_rope:
+        # Add position embeddings (only for SigLIP, DINOv3 uses RoPE in attention)
+        if not self.use_dinov3_rope:
             # Standard learned position embeddings (SigLIP)
             x = x + self.position_embedding
 
@@ -230,23 +219,7 @@ class ViTMultiHeadAttention(nn.Module):
                 "Warning: scaled dot product attention not available. Using standard attention in ViT."
             )
 
-    def apply_rope(self, q, k, seq_len):
-        """Apply rotary position embeddings"""
-        cos, sin = self.rope(seq_len)
-        cos = cos.unsqueeze(0).unsqueeze(0)  # (1, 1, seq_len, head_dim)
-        sin = sin.unsqueeze(0).unsqueeze(0)
-
-        # Apply rotation
-        q_rot = q * cos + self.rotate_half(q) * sin
-        k_rot = k * cos + self.rotate_half(k) * sin
-        return q_rot, k_rot
-
-    def rotate_half(self, x):
-        """Helper for RoPE"""
-        x1, x2 = x.chunk(2, dim=-1)
-        return torch.cat((-x2, x1), dim=-1)
-
-    def forward(self, x):
+    def forward(self, x, position_embeddings=None):
         B, T, C = x.size()
 
         qkv = self.qkv_proj(x)
@@ -262,9 +235,13 @@ class ViTMultiHeadAttention(nn.Module):
             1, 2
         )  # (B, n_heads, T, head_dim)
 
-        # Apply RoPE if enabled
-        if self.use_rope:
-            q, k = self.apply_rope(q, k, T)
+        # Apply DINOv3 RoPE if enabled
+        if getattr(self, 'use_dinov3_rope', False) and position_embeddings is not None:
+            cos, sin = position_embeddings
+            # Determine number of prefix tokens (CLS + registers)
+            num_prefix = 1 if self.cfg.vit_cls_flag else 0
+            num_prefix += getattr(self.cfg, 'vit_num_registers', 0)
+            q, k = apply_rotary_pos_emb(q, k, cos, sin, num_prefix_tokens=num_prefix)
 
         if self.sdpa:
             y = torch.nn.functional.scaled_dot_product_attention(
@@ -348,13 +325,13 @@ class ViTBlock(nn.Module):
             DropPath(drop_path_rate) if drop_path_rate > 0.0 else nn.Identity()
         )
 
-    def forward(self, x):
+    def forward(self, x, position_embeddings=None):
         # Attention block with optional LayerScale and DropPath
         if self.use_layer_scale:
-            x = x + self.drop_path(self.layer_scale1(self.attn(self.ln1(x))))
+            x = x + self.drop_path(self.layer_scale1(self.attn(self.ln1(x), position_embeddings)))
             x = x + self.drop_path(self.layer_scale2(self.mlp(self.ln2(x))))
         else:
-            x = x + self.drop_path(self.attn(self.ln1(x)))
+            x = x + self.drop_path(self.attn(self.ln1(x), position_embeddings))
             x = x + self.drop_path(self.mlp(self.ln2(x)))
         return x
 
@@ -366,6 +343,11 @@ class ViT(nn.Module):
         self.patch_embedding = ViTPatchEmbeddings(cfg)
         self.cls_flag = cfg.vit_cls_flag
         self.dropout = nn.Dropout(cfg.vit_dropout)
+        self.use_dinov3_rope = getattr(cfg, "vit_architecture", "siglip") == "dinov3"
+        
+        # Initialize DINOv3 RoPE if needed
+        if self.use_dinov3_rope:
+            self.rope_embeddings = DINOv3RoPEPositionEmbedding(cfg)
 
         # Create blocks with stochastic depth (linearly increasing drop rate)
         drop_path_rate = getattr(cfg, "vit_drop_path_rate", 0.0)
@@ -391,10 +373,24 @@ class ViT(nn.Module):
                 torch.nn.init.zeros_(module.bias)
 
     def forward(self, x):
+        B = x.shape[0]
         x = self.patch_embedding(x)
         x = self.dropout(x)
+        
+        # Generate DINOv3 RoPE embeddings if needed
+        position_embeddings = None
+        use_dinov3_rope = getattr(self.cfg, 'vit_architecture', 'siglip') == 'dinov3'
+        if use_dinov3_rope and hasattr(self, 'rope_embeddings'):
+            # Calculate number of patches from input
+            num_patches_h = num_patches_w = int(math.sqrt((x.shape[1] - 1 - getattr(self.cfg, 'vit_num_registers', 0)) if self.cls_flag else x.shape[1] - getattr(self.cfg, 'vit_num_registers', 0)))
+            cos, sin = self.rope_embeddings(num_patches_h, num_patches_w, x.dtype, x.device)
+            # Expand for batch and heads
+            cos = cos.unsqueeze(0).unsqueeze(0)  # (1, 1, num_patches, head_dim)
+            sin = sin.unsqueeze(0).unsqueeze(0)
+            position_embeddings = (cos, sin)
+        
         for block in self.blocks:
-            x = block(x)
+            x = block(x, position_embeddings)
 
         x = self.layer_norm(x)
 
@@ -645,6 +641,11 @@ class ViT(nn.Module):
                         pass
 
         model.load_state_dict(sd)
+        
+        # Initialize DINOv3 RoPE embeddings after loading if needed
+        if cfg.vit_architecture == "dinov3" and not hasattr(model, 'rope_embeddings'):
+            model.rope_embeddings = DINOv3RoPEPositionEmbedding(cfg)
+        
         print(
             f"Successfully loaded {cfg.vit_model_type} weights from safetensors. Model has {sum(p.numel() for p in model.parameters()):,} parameters."
         )

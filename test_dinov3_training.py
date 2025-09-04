@@ -1,16 +1,18 @@
-import os
 import sys
-import torch
 import time
+
+import torch
 
 sys.path.append('.')
 
-from models.config import get_dinov3_gemma_config, TrainConfig
-from models.vision_language_model import VisionLanguageModel
-from data.processors import get_tokenizer, get_image_processor
-from data.collators import VQACollator
-from PIL import Image
 import numpy as np
+from PIL import Image
+
+from data.collators import VQACollator
+from data.processors import get_image_processor, get_tokenizer
+from models.config import TrainConfig, get_dinov3_gemma_config
+from models.vision_language_model import VisionLanguageModel
+
 
 # Quick training test script
 def main():
@@ -64,7 +66,7 @@ def main():
         }
         
         # Create a simple Q&A conversation
-        question = f"<|image|> What is in this image?"
+        question = "<|image|> What is in this image?"
         answer = f"This is image number {i}. It contains various objects."
         
         # Tokenize
@@ -117,13 +119,13 @@ def main():
     # Optimizer step
     optimizer.step()
     optimizer.zero_grad()
-    print(f"  ✓ Optimizer step completed")
+    print("  ✓ Optimizer step completed")
     
     # Memory stats
     if device.type == 'cuda':
         allocated = torch.cuda.memory_allocated() / 1024**3
         reserved = torch.cuda.memory_reserved() / 1024**3
-        print(f"\nGPU Memory:")
+        print("\nGPU Memory:")
         print(f"  Allocated: {allocated:.2f} GB")
         print(f"  Reserved: {reserved:.2f} GB")
     
