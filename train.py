@@ -686,6 +686,20 @@ def train(train_cfg, vlm_cfg):
 
             if is_update_step:
                 global_step += 1
+
+                # Save checkpoint at regular intervals if configured
+                if (
+                    train_cfg.save_checkpoint_steps is not None
+                    and global_step % train_cfg.save_checkpoint_steps == 0
+                    and is_master()
+                ):
+                    save_model = model.module if is_dist() else model
+                    checkpoint_dir = os.path.join(
+                        vlm_cfg.vlm_checkpoint_path, run_name, f"step_{global_step}"
+                    )
+                    save_model.save_pretrained(save_directory=checkpoint_dir)
+                    print(f"Saved checkpoint at step {global_step} to {checkpoint_dir}")
+
                 if global_step >= train_cfg.max_training_steps:
                     break
             data_load_start = time.time()
@@ -762,6 +776,13 @@ def main():
         help="Vision encoder architecture to use",
     )
     parser.add_argument(
+        "--dinov3_model",
+        type=str,
+        choices=["vits16plus", "vitb16", "vitl14"],
+        default="vits16plus",
+        help="DINOv3 model size to use (only applies when --vision_encoder=dinov3)",
+    )
+    parser.add_argument(
         "--language_model",
         type=str,
         choices=["llama", "smollm", "gemma"],
@@ -817,6 +838,18 @@ def main():
     parser.add_argument(
         "--console_log_interval", type=int, help="Print loss to console every N steps"
     )
+    parser.add_argument(
+        "--save_checkpoint_steps",
+        type=int,
+        default=None,
+        help="Save checkpoint every N steps regardless of validation loss (in addition to best model saving)",
+    )
+    parser.add_argument(
+        "--eval_interval",
+        type=int,
+        default=None,
+        help="Evaluate and potentially save best model every N steps",
+    )
 
     args = parser.parse_args()
 
@@ -836,8 +869,14 @@ def main():
                 vlm_cfg.vit_use_rope = False
             else:
                 # Real DINOv3!
-                vlm_cfg.vit_model_type = (
-                    "facebook/dinov3-vits16plus-pretrain-lvd1689m"  # Small version
+                # Support different DINOv3 model sizes
+                dinov3_models = {
+                    "vits16plus": "facebook/dinov3-vits16plus-pretrain-lvd1689m",
+                    "vitb16": "facebook/dinov3-vitb16-pretrain-lvd1689m",
+                    "vitl14": "facebook/dinov3-vitl14-pretrain-lvd1689m",
+                }
+                vlm_cfg.vit_model_type = dinov3_models.get(
+                    args.dinov3_model, "facebook/dinov3-vits16plus-pretrain-lvd1689m"
                 )
                 vlm_cfg.vit_num_registers = 4  # DINOv3 has registers
                 vlm_cfg.vit_use_swiglu = True  # DINOv3 DOES use SwiGLU (gated MLP)
@@ -876,6 +915,10 @@ def main():
         train_cfg.max_threads = args.max_threads
     if args.console_log_interval is not None:
         train_cfg.console_log_interval = args.console_log_interval
+    if args.eval_interval is not None:
+        train_cfg.eval_interval = args.eval_interval
+    if args.save_checkpoint_steps is not None:
+        train_cfg.save_checkpoint_steps = args.save_checkpoint_steps
 
     if args.resume_from_vlm_checkpoint and args.vlm_checkpoint_path is not None:
         train_cfg.resume_from_vlm_checkpoint = True
