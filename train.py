@@ -12,13 +12,13 @@ import PIL.PngImagePlugin
 import torch
 import torch.distributed as dist
 import torch.optim as optim
+import wandb
 from datasets import (concatenate_datasets, get_dataset_config_names,
                       load_dataset)
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 
 import models.config as config
-import wandb
 from data.advanced_datasets import ConstantLengthDataset
 from data.collators import VQACollator
 from data.data_utils import synchronized_dataloader_step
