@@ -23,7 +23,16 @@ uv.lock
 
 .DS_Store
 
+# Model checkpoints and weights
 checkpoints/
+*.safetensors
+*.bin
+*.pt
+*.ckpt
+model_*.json
+config_*.json
+
+# Other directories
 notebooks/
 results/
 *.slurm
