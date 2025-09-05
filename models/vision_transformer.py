@@ -295,17 +295,18 @@ class ViTMultiHeadAttention(nn.Module):
 
 
 class ViTSwiGLUFFN(nn.Module):
-    """SwiGLU FFN for DINOv3"""
+    """SwiGLU FFN for DINOv3+ models"""
 
     def __init__(self, cfg):
         super().__init__()
-        self.w1 = nn.Linear(cfg.vit_hidden_dim, cfg.vit_inter_dim, bias=True)
-        self.w2 = nn.Linear(cfg.vit_inter_dim, cfg.vit_hidden_dim, bias=True)
-        self.w3 = nn.Linear(cfg.vit_hidden_dim, cfg.vit_inter_dim, bias=True)
+        # Use HuggingFace naming convention for compatibility
+        self.gate_proj = nn.Linear(cfg.vit_hidden_dim, cfg.vit_inter_dim, bias=True)
+        self.down_proj = nn.Linear(cfg.vit_inter_dim, cfg.vit_hidden_dim, bias=True)
+        self.up_proj = nn.Linear(cfg.vit_hidden_dim, cfg.vit_inter_dim, bias=True)
         self.dropout = nn.Dropout(cfg.vit_dropout)
 
     def forward(self, x):
-        return self.dropout(self.w2(F.silu(self.w1(x)) * self.w3(x)))
+        return self.dropout(self.down_proj(F.silu(self.gate_proj(x)) * self.up_proj(x)))
 
 
 # https://github.com/huggingface/transformers/blob/main/src/transformers/models/siglip/modeling_siglip.py#L453
@@ -529,13 +530,41 @@ class ViT(nn.Module):
                     f"blocks.{i}.attn.out_proj.bias"
                 )
 
-                # MLP - DINOv3 uses SwiGLU (gate=w1, up=w3, down=w2)
-                mapping[f"layer.{i}.mlp.gate_proj.weight"] = f"blocks.{i}.mlp.w1.weight"
-                mapping[f"layer.{i}.mlp.gate_proj.bias"] = f"blocks.{i}.mlp.w1.bias"
-                mapping[f"layer.{i}.mlp.up_proj.weight"] = f"blocks.{i}.mlp.w3.weight"
-                mapping[f"layer.{i}.mlp.up_proj.bias"] = f"blocks.{i}.mlp.w3.bias"
-                mapping[f"layer.{i}.mlp.down_proj.weight"] = f"blocks.{i}.mlp.w2.weight"
-                mapping[f"layer.{i}.mlp.down_proj.bias"] = f"blocks.{i}.mlp.w2.bias"
+                # MLP - Check if this DINOv3 model uses gated MLP (SwiGLU)
+                if cfg.vit_use_swiglu:
+                    # DINOv3+ models use SwiGLU with gate_proj
+                    # Our model: blocks.X.mlp.gate_proj <- HF: layer.X.mlp.gate_proj
+                    mapping[f"blocks.{i}.mlp.gate_proj.weight"] = (
+                        f"layer.{i}.mlp.gate_proj.weight"
+                    )
+                    mapping[f"blocks.{i}.mlp.gate_proj.bias"] = (
+                        f"layer.{i}.mlp.gate_proj.bias"
+                    )
+                    mapping[f"blocks.{i}.mlp.up_proj.weight"] = (
+                        f"layer.{i}.mlp.up_proj.weight"
+                    )
+                    mapping[f"blocks.{i}.mlp.up_proj.bias"] = (
+                        f"layer.{i}.mlp.up_proj.bias"
+                    )
+                    mapping[f"blocks.{i}.mlp.down_proj.weight"] = (
+                        f"layer.{i}.mlp.down_proj.weight"
+                    )
+                    mapping[f"blocks.{i}.mlp.down_proj.bias"] = (
+                        f"layer.{i}.mlp.down_proj.bias"
+                    )
+                else:
+                    # Regular DINOv3 models use standard MLP
+                    # Our model: blocks.X.mlp.fc1/fc2 <- HF: layer.X.mlp.up_proj/down_proj
+                    mapping[f"blocks.{i}.mlp.fc1.weight"] = (
+                        f"layer.{i}.mlp.up_proj.weight"
+                    )
+                    mapping[f"blocks.{i}.mlp.fc1.bias"] = f"layer.{i}.mlp.up_proj.bias"
+                    mapping[f"blocks.{i}.mlp.fc2.weight"] = (
+                        f"layer.{i}.mlp.down_proj.weight"
+                    )
+                    mapping[f"blocks.{i}.mlp.fc2.bias"] = (
+                        f"layer.{i}.mlp.down_proj.bias"
+                    )
         elif is_dinov2:
             # DINOv2 weight mapping
             mapping = {
@@ -594,7 +623,7 @@ class ViT(nn.Module):
         with safetensors.safe_open(
             filename=safetensors_file, framework="pt", device="cpu"
         ) as f:
-            for hf_key, our_key in mapping.items():
+            for our_key, hf_key in mapping.items():
                 if hf_key in f.keys() and our_key in sd:
                     tensor = f.get_tensor(hf_key)
                     if tensor.shape == sd[our_key].shape:

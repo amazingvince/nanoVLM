@@ -879,7 +879,8 @@ def main():
                     args.dinov3_model, "facebook/dinov3-vits16plus-pretrain-lvd1689m"
                 )
                 vlm_cfg.vit_num_registers = 4  # DINOv3 has registers
-                vlm_cfg.vit_use_swiglu = True  # DINOv3 DOES use SwiGLU (gated MLP)
+                # Only "plus" models use SwiGLU
+                vlm_cfg.vit_use_swiglu = "plus" in args.dinov3_model
                 vlm_cfg.vit_use_rope = True  # DINOv3 uses RoPE
                 vlm_cfg.vit_img_size = 224  # DINOv3 default size
             vlm_cfg.vit_cls_flag = True
@@ -890,6 +891,11 @@ def main():
             vlm_cfg.lm_architecture = "gemma"
             vlm_cfg.lm_model_type = "google/gemma-3-270m-it"  # Real Gemma 3 270M model
             vlm_cfg.lm_tokenizer = "google/gemma-3-270m-it"
+            vlm_cfg.lm_base_vocab_size = 262144  # Gemma-3 actual vocab size
+            # Recalculate vocab size with extra tokens
+            vlm_cfg.lm_vocab_size = config.round_up_to_multiple(
+                vlm_cfg.lm_base_vocab_size + vlm_cfg.extra_token_amount
+            )
 
     train_cfg = config.TrainConfig()
 
