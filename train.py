@@ -13,8 +13,7 @@ import torch
 import torch.distributed as dist
 import torch.optim as optim
 import wandb
-from datasets import (concatenate_datasets, get_dataset_config_names,
-                      load_dataset)
+from datasets import concatenate_datasets, get_dataset_config_names, load_dataset
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 
@@ -24,6 +23,7 @@ from data.collators import VQACollator
 from data.data_utils import synchronized_dataloader_step
 from data.datasets import VQADataset
 from data.processors import get_image_processor, get_tokenizer
+from models.gpu_utils import configure_tf32
 from models.vision_language_model import VisionLanguageModel
 
 torch.manual_seed(0)
@@ -114,7 +114,9 @@ def get_dataloaders(train_cfg, vlm_cfg):
     # Create datasets
     # Use single image mode for DINOv3 (resize to 224x224 instead of splitting)
     single_image_mode = vlm_cfg.vit_architecture == "dinov3"
-    image_processor = get_image_processor(vlm_cfg.max_img_size, vlm_cfg.vit_img_size, single_image_mode)
+    image_processor = get_image_processor(
+        vlm_cfg.max_img_size, vlm_cfg.vit_img_size, single_image_mode
+    )
     tokenizer = get_tokenizer(
         vlm_cfg.lm_tokenizer, vlm_cfg.vlm_extra_tokens, vlm_cfg.lm_chat_template
     )
@@ -601,7 +603,11 @@ def train(train_cfg, vlm_cfg):
                     )
 
                 # MASTER ONLY: Log to wandb
-                if train_cfg.log_wandb and is_master() and global_step % train_cfg.wandb_log_steps == 0:
+                if (
+                    train_cfg.log_wandb
+                    and is_master()
+                    and global_step % train_cfg.wandb_log_steps == 0
+                ):
                     run.log(
                         {
                             **{
@@ -627,14 +633,27 @@ def train(train_cfg, vlm_cfg):
                 # MASTER ONLY: Log to console and wandb
                 if is_master():
                     # Console logging every N steps (configurable)
-                    console_log_interval = getattr(train_cfg, 'console_log_interval', 100)
+                    console_log_interval = getattr(
+                        train_cfg, "console_log_interval", 100
+                    )
                     if global_step % console_log_interval == 0:
-                        lr_str = f"LR: {adj_lr_mp:.2e}" if 'adj_lr_mp' in locals() else ""
-                        grad_str = f"Grad: {grad_norm:.3f}" if train_cfg.max_grad_norm is not None else ""
-                        print(f"Step {global_step}/{train_cfg.max_training_steps} | Loss: {batch_loss_gathered:.4f} | {lr_str} | {grad_str} | Tokens/s: {tokens_per_second:.0f}")
-                    
+                        lr_str = (
+                            f"LR: {adj_lr_mp:.2e}" if "adj_lr_mp" in locals() else ""
+                        )
+                        grad_str = (
+                            f"Grad: {grad_norm:.3f}"
+                            if train_cfg.max_grad_norm is not None
+                            else ""
+                        )
+                        print(
+                            f"Step {global_step}/{train_cfg.max_training_steps} | Loss: {batch_loss_gathered:.4f} | {lr_str} | {grad_str} | Tokens/s: {tokens_per_second:.0f}"
+                        )
+
                     # Wandb logging
-                    if train_cfg.log_wandb and global_step % train_cfg.wandb_log_steps == 0:
+                    if (
+                        train_cfg.log_wandb
+                        and global_step % train_cfg.wandb_log_steps == 0
+                    ):
                         run.log(
                             {
                                 "batch_loss": batch_loss_gathered,
@@ -794,7 +813,9 @@ def main():
                 vlm_cfg.vit_use_rope = False
             else:
                 # Real DINOv3!
-                vlm_cfg.vit_model_type = "facebook/dinov3-vits16plus-pretrain-lvd1689m"  # Small version
+                vlm_cfg.vit_model_type = (
+                    "facebook/dinov3-vits16plus-pretrain-lvd1689m"  # Small version
+                )
                 vlm_cfg.vit_num_registers = 4  # DINOv3 has registers
                 vlm_cfg.vit_use_swiglu = True  # DINOv3 DOES use SwiGLU (gated MLP)
                 vlm_cfg.vit_use_rope = True  # DINOv3 uses RoPE
@@ -834,6 +855,9 @@ def main():
 
     if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
         init_dist()
+
+    # Configure TF32 for better performance on Ampere+ GPUs
+    configure_tf32()
 
     if is_master():
         print("--- VLM Config ---")

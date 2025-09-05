@@ -63,7 +63,7 @@ def get_tokenizer(name, extra_special_tokens=None, chat_template=None):
 def get_image_processor(max_img_size, splitted_image_size, single_image_mode=False):
     """
     Create image processor.
-    
+
     Args:
         max_img_size: Maximum size for image dimension
         splitted_image_size: Target size for each image/patch
@@ -71,18 +71,22 @@ def get_image_processor(max_img_size, splitted_image_size, single_image_mode=Fal
     """
     if single_image_mode:
         # For DINOv3: resize entire image to 224x224, which will be processed into 14x14 patches
-        return transforms.Compose([
-            transforms.Resize((splitted_image_size, splitted_image_size)),
-            transforms.ToTensor(),
-            lambda x: (x, (1, 1))  # Return tensor and grid count (1x1)
-        ])
+        return transforms.Compose(
+            [
+                transforms.Resize((splitted_image_size, splitted_image_size)),
+                transforms.ToTensor(),
+                lambda x: (x, (1, 1)),  # Return tensor and grid count (1x1)
+            ]
+        )
     else:
         # For SigLIP: split into multiple 224x224 sub-images
-        return transforms.Compose([
-            DynamicResize(splitted_image_size, max_img_size),
-            transforms.ToTensor(),
-            SplitImage(splitted_image_size),
-        ])
+        return transforms.Compose(
+            [
+                DynamicResize(splitted_image_size, max_img_size),
+                transforms.ToTensor(),
+                SplitImage(splitted_image_size),
+            ]
+        )
 
 
 def get_image_string(tokenizer, splitted_image_counts, mp_image_token_length):

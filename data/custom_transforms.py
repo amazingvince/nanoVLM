@@ -17,6 +17,7 @@ class DynamicResize(torch.nn.Module):
     Works on PIL Images, (C, H, W) tensors, or (B, C, H, W) tensors.
     Returns the same type it receives.
     """
+
     def __init__(
         self,
         patch_size: int,
@@ -58,16 +59,14 @@ class DynamicResize(torch.nn.Module):
 
         if not torch.is_tensor(img):
             raise TypeError(
-                "DynamicResize expects a PIL Image or a torch.Tensor; "
-                f"got {type(img)}"
+                f"DynamicResize expects a PIL Image or a torch.Tensor; got {type(img)}"
             )
 
         # tensor path ---------------------------------------------------------
         batched = img.ndim == 4
         if img.ndim not in (3, 4):
             raise ValueError(
-                "Tensor input must have shape (C,H,W) or (B,C,H,W); "
-                f"got {img.shape}"
+                f"Tensor input must have shape (C,H,W) or (B,C,H,W); got {img.shape}"
             )
 
         # operate batch-wise
@@ -86,23 +85,27 @@ class SplitImage(torch.nn.Module):
         patches: (B·n_h·n_w, C, patch_size, patch_size)
         grid:    (n_h, n_w)  - number of patches along H and W
     """
+
     def __init__(self, patch_size: int) -> None:
         super().__init__()
         self.p = patch_size
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, Tuple[int, int]]:
-        if x.ndim == 3:            # add batch dim if missing
+        if x.ndim == 3:  # add batch dim if missing
             x = x.unsqueeze(0)
 
         b, c, h, w = x.shape
-        
+
         # For SigLIP splitting, image should be divisible by patch_size
         # This is handled by DynamicResize before we get here
         if h % self.p or w % self.p:
             # Could pad here but DynamicResize should handle it
-            raise ValueError(f'Image size {(h,w)} not divisible by patch_size {self.p}. DynamicResize should have handled this.')
+            raise ValueError(
+                f"Image size {(h, w)} not divisible by patch_size {self.p}. DynamicResize should have handled this."
+            )
 
         n_h, n_w = h // self.p, w // self.p
-        patches = rearrange(x, 'b c (nh ph) (nw pw) -> (b nh nw) c ph pw',
-                            ph=self.p, pw=self.p)
+        patches = rearrange(
+            x, "b c (nh ph) (nw pw) -> (b nh nw) c ph pw", ph=self.p, pw=self.p
+        )
         return patches, (n_h, n_w)

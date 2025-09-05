@@ -19,20 +19,30 @@ class BaseDataset(Dataset):
 
     def _get_prefix_len(self):
         random_string_5_letters = "xzyvd"
-        random_string_chat_templated = self.tokenizer.apply_chat_template([{"role": "assistant", "content": random_string_5_letters}], tokenize=False, add_special_tokens=False)
-        random_string_location = random_string_chat_templated.find(random_string_5_letters)
-        return len(self.tokenizer.encode(random_string_chat_templated[:random_string_location]))
+        random_string_chat_templated = self.tokenizer.apply_chat_template(
+            [{"role": "assistant", "content": random_string_5_letters}],
+            tokenize=False,
+            add_special_tokens=False,
+        )
+        random_string_location = random_string_chat_templated.find(
+            random_string_5_letters
+        )
+        return len(
+            self.tokenizer.encode(random_string_chat_templated[:random_string_location])
+        )
 
     def _get_messages(self, item, splitted_image_counts):
         messages = []
-        for text in item['texts']:
-            messages.append({"role": "user", "content": text['user']})
-            messages.append({"role": "assistant", "content": text['assistant']})
+        for text in item["texts"]:
+            messages.append({"role": "user", "content": text["user"]})
+            messages.append({"role": "assistant", "content": text["assistant"]})
 
-        image_string = get_image_string(self.tokenizer, splitted_image_counts, self.mp_image_token_length)
+        image_string = get_image_string(
+            self.tokenizer, splitted_image_counts, self.mp_image_token_length
+        )
 
         if len(splitted_image_counts) > 0:
-            messages[0]["content"] = image_string + messages[0]["content"]      
+            messages[0]["content"] = image_string + messages[0]["content"]
 
         return messages
 
@@ -41,15 +51,14 @@ class BaseDataset(Dataset):
         splitted_image_counts = []
         for image in images:
             if isinstance(image, Image.Image):
-                if image.mode != 'RGB':
-                    image = image.convert('RGB')
+                if image.mode != "RGB":
+                    image = image.convert("RGB")
                 processed_image, splitted_image_count = self.image_processor(image)
                 processed_images.append(processed_image)
                 splitted_image_counts.append(splitted_image_count)
             else:
                 raise ValueError("Error processing image")
         return processed_images, splitted_image_counts
-
 
     def _prepare_inputs_and_loss_mask(self, messages):
         conv_ids = self.tokenizer.apply_chat_template(
@@ -70,12 +79,16 @@ class BaseDataset(Dataset):
 
             if msg["role"] == "assistant":
                 start = cursor + self.prefix_len
-                end   = cursor + seg_len
+                end = cursor + seg_len
                 mask[start:end] = [1] * (end - start)  # attend to these tokens
 
             cursor += seg_len
-        
-        return torch.tensor(conv_ids["input_ids"]), torch.tensor(mask).to(torch.bool), torch.tensor(conv_ids["attention_mask"])
+
+        return (
+            torch.tensor(conv_ids["input_ids"]),
+            torch.tensor(mask).to(torch.bool),
+            torch.tensor(conv_ids["attention_mask"]),
+        )
 
 
 class VQADataset(BaseDataset):  # Visual Question Answering Dataset
@@ -83,7 +96,7 @@ class VQADataset(BaseDataset):  # Visual Question Answering Dataset
         item = self.dataset[idx]
 
         # Handle images (should be a list)
-        images_data = item['images']
+        images_data = item["images"]
         if not isinstance(images_data, list):
             images_data = [images_data]
 
@@ -104,7 +117,7 @@ class VQADataset(BaseDataset):  # Visual Question Answering Dataset
 
     def _get_labels(self, input_ids, mask):
         labels = input_ids.clone().masked_fill(~mask, -100)
-        labels = labels.roll(-1) # Shift labels for causal LM
-        labels[-1] = -100 # Last token has no target
-        
+        labels = labels.roll(-1)  # Shift labels for causal LM
+        labels[-1] = -100  # Last token has no target
+
         return labels
