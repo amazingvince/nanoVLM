@@ -339,7 +339,7 @@ def train(train_cfg, vlm_cfg):
     model.to(device)
 
     if train_cfg.compile:
-        model = torch.compile(model)
+        model = torch.compile(model, dynamic=True)
     if is_dist():
         model = wrap_model(model)
 
