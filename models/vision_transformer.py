@@ -215,7 +215,7 @@ class ViTMultiHeadAttention(nn.Module):
 
         # RoPE if needed
         if self.use_rope:
-            self.rope = VisionRotaryEmbedding(
+            self.rope = DINOv3RoPEPositionEmbedding(
                 self.head_dim,
                 base=cfg.vit_rope_base if hasattr(cfg, "vit_rope_base") else 10000.0,
             )
@@ -383,7 +383,6 @@ class ViT(nn.Module):
                 torch.nn.init.zeros_(module.bias)
 
     def forward(self, x):
-        B = x.shape[0]
         x = self.patch_embedding(x)
         x = self.dropout(x)
 

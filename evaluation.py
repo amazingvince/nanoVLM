@@ -4,11 +4,13 @@ import argparse
 import datetime
 import importlib
 import json
+import logging
 import os
 import sys
 import traceback
 import warnings
 from functools import partial
+from typing import Union
 
 import numpy as np
 import torch
@@ -16,17 +18,21 @@ import yaml
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
 
-import logging
-from typing import Union
-
-from accelerate import Accelerator
-from accelerate.utils import InitProcessGroupKwargs
-from lmms_eval import evaluator, utils
-from lmms_eval.evaluator import request_caching_arg_to_dict
-from lmms_eval.loggers import EvaluationTracker, WandbLogger
-from lmms_eval.tasks import TaskManager
-from lmms_eval.utils import make_table, simple_parse_args_string
-from loguru import logger as eval_logger
+# Check for lmms_eval availability early
+try:
+    from accelerate import Accelerator
+    from accelerate.utils import InitProcessGroupKwargs
+    from lmms_eval import evaluator, utils
+    from lmms_eval.evaluator import request_caching_arg_to_dict
+    from lmms_eval.loggers import EvaluationTracker, WandbLogger
+    from lmms_eval.tasks import TaskManager, get_task_dict
+    from lmms_eval.utils import make_table, simple_parse_args_string
+    from loguru import logger as eval_logger
+except ImportError as e:
+    print("Error: lmms_eval is not installed. Please install it first:")
+    print("  uv pip install git+https://github.com/EvolvingLMMs-Lab/lmms-eval.git")
+    print(f"Original error: {e}")
+    sys.exit(1)
 
 from eval.lmms_eval_wrapper import NanoVLMWrapper
 
@@ -306,7 +312,7 @@ def cli_evaluate(args: Union[argparse.Namespace, None] = None) -> None:
 
         with open(args.config, "r") as file:
             config_args = yaml.safe_load(file)
-        config_args = [config_args] if type(config_args) != list else config_args
+        config_args = [config_args] if not isinstance(config_args, list) else config_args
         # multiple configs, create args list first
         for config in config_args:
             args_copy = argparse.Namespace(**vars(args))
@@ -368,8 +374,6 @@ def cli_evaluate(args: Union[argparse.Namespace, None] = None) -> None:
     return results_list
 
 def cli_evaluate_single(args: Union[argparse.Namespace, None] = None) -> None:
-    selected_task_list = args.tasks.split(",") if args.tasks else None
-
     if args.include_path is not None:
         eval_logger.info(f"Including path: {args.include_path}")
     task_manager = TaskManager(args.verbosity, include_path=args.include_path, model_name=args.model)
@@ -433,9 +437,9 @@ def cli_evaluate_single(args: Union[argparse.Namespace, None] = None) -> None:
         eval_logger.info(log_message)
         for task_name in sorted(task_manager.list_all_tasks()):
             try:
-                task_dict = get_task_dict([task_name], model_name="llava")
+                task_dict = get_task_dict([task_name], model_name="llava")  
                 task_obj = task_dict[task_name]
-                if type(task_obj) == tuple:
+                if isinstance(task_obj, tuple):
                     group, task_obj = task_obj
                     if task_obj is None:
                         continue
@@ -519,8 +523,6 @@ def cli_evaluate_single(args: Union[argparse.Namespace, None] = None) -> None:
         dumped = json.dumps(results, indent=4, default=_handle_non_serializable)
         if args.show_config:
             print(dumped)
-
-        batch_sizes = ",".join(map(str, results["config"]["batch_sizes"]))
 
         evaluation_tracker.save_results_aggregated(results=results, samples=samples if args.log_samples else None, datetime_str=datetime_str)
 

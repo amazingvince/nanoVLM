@@ -1,20 +1,19 @@
 import torch
 from PIL import Image
-
-torch.manual_seed(0)
-if torch.cuda.is_available():
-    torch.cuda.manual_seed_all(0)
-
 from torch.utils import benchmark
 
 from data.processors import get_image_processor, get_tokenizer
 from models.vision_language_model import VisionLanguageModel
 
+torch.manual_seed(0)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(0)
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 def generate_tokens(tokens, image):
-    gen = model.generate(tokens, image, max_new_tokens=1000)
+    return model.generate(tokens, image, max_new_tokens=1000)
 
 if __name__ == "__main__":
     model = VisionLanguageModel.from_pretrained("lusxvr/nanoVLM-450M").to(device)

@@ -3,12 +3,12 @@ import argparse
 import torch
 from PIL import Image
 
+from data.processors import get_image_processor, get_tokenizer
+from models.vision_language_model import VisionLanguageModel
+
 torch.manual_seed(0)
 if torch.cuda.is_available():
     torch.cuda.manual_seed_all(0)
-
-from data.processors import get_image_processor, get_tokenizer
-from models.vision_language_model import VisionLanguageModel
 
 
 def parse_args():

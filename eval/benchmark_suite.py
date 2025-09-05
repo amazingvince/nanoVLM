@@ -99,7 +99,8 @@ def benchmark_vlm(
         start = time.perf_counter()
         img_emb = model.vision_encoder(image_tensor)
         img_emb = model.MP(img_emb)
-        if device.type == 'cuda': torch.cuda.synchronize()
+        if device.type == 'cuda':
+            torch.cuda.synchronize()
         ve = time.perf_counter() - start
         vision_t.append(ve)
 
@@ -109,14 +110,17 @@ def benchmark_vlm(
         mask = None
         if attention_mask is not None:
             mask = torch.cat((torch.ones((1, img_emb.size(1)), device=device), attention_mask), dim=1)
-        if device.type == 'cuda': torch.cuda.synchronize()
+        if device.type == 'cuda':
+            torch.cuda.synchronize()
         t0 = time.perf_counter()
         out, _ = model.decoder(combined, mask)
         logits = out[:, -1, :]
-        if not model.decoder.lm_use_tokens: logits = model.decoder.head(logits)
+        if not model.decoder.lm_use_tokens:
+            logits = model.decoder.head(logits)
         probs = torch.softmax(logits, dim=-1)
         nt = torch.multinomial(probs, num_samples=1)
-        if device.type == 'cuda': torch.cuda.synchronize()
+        if device.type == 'cuda':
+            torch.cuda.synchronize()
         t1 = time.perf_counter()
         ftt = (ve + (t1 - t0))
         first_token_t.append(ftt)
@@ -126,17 +130,21 @@ def benchmark_vlm(
         emb = model.decoder.token_embedding(nt)
         seq = torch.cat((combined, emb), dim=1)
         m = mask
-        if m is not None: m = torch.cat((m, torch.ones((1,1), device=device)), dim=1)
+        if m is not None:
+            m = torch.cat((m, torch.ones((1,1), device=device)), dim=1)
         for _ in range(1, max_new_tokens):
             out, _ = model.decoder(seq, m)
             logits = out[:, -1, :]
-            if not model.decoder.lm_use_tokens: logits = model.decoder.head(logits)
+            if not model.decoder.lm_use_tokens:
+                logits = model.decoder.head(logits)
             p = torch.softmax(logits, dim=-1)
             nt = torch.multinomial(p, num_samples=1)
             emb = model.decoder.token_embedding(nt)
             seq = torch.cat((seq, emb), dim=1)
-            if m is not None: m = torch.cat((m, torch.ones((1,1), device=device)), dim=1)
-        if device.type == 'cuda': torch.cuda.synchronize()
+            if m is not None:
+                m = torch.cat((m, torch.ones((1,1), device=device)), dim=1)
+        if device.type == 'cuda':
+            torch.cuda.synchronize()
         llm = (t1 - t0) + (time.perf_counter() - start_sub)
         llm_t.append(llm)
         tokens_counts.append(max_new_tokens)
@@ -171,7 +179,8 @@ def benchmark_vlm(
             "avg_peak_vram_inference_mb": avg_peak,
     }
     del model, tokenizer, image_processor
-    if device.type == 'cuda': torch.cuda.empty_cache()
+    if device.type == 'cuda':
+        torch.cuda.empty_cache()
     return daresult
 
 

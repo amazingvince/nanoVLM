@@ -1,21 +1,20 @@
 import argparse
+import os
 
 import torch
 import torch.optim as optim
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 
-torch.manual_seed(0)
-if torch.cuda.is_available():
-    torch.cuda.manual_seed_all(0)
-
-import os
-
 import models.config as config
 from data.collators import VQACollator
 from data.datasets import VQADataset
 from data.processors import get_image_processor, get_tokenizer
 from models.vision_language_model import VisionLanguageModel
+
+torch.manual_seed(0)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed_all(0)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -163,11 +162,16 @@ def measure_vram(args, vlm_cfg, train_cfg_defaults):
                 # raise e # Optionally re-raise for debugging
         finally:
             del current_loader, optimizer
-            if 'loss' in locals() and loss is not None : del loss
-            if 'images' in locals(): del images
-            if 'input_ids' in locals(): del input_ids
-            if 'labels' in locals(): del labels
-            if 'attention_mask' in locals(): del attention_mask
+            if 'loss' in locals() and loss is not None:
+                del loss
+            if 'images' in locals():
+                del images
+            if 'input_ids' in locals():
+                del input_ids
+            if 'labels' in locals():
+                del labels
+            if 'attention_mask' in locals():
+                del attention_mask
             torch.cuda.empty_cache()
 
     print("\n--- Summary of VRAM Usage ---")
