@@ -14,6 +14,7 @@ wheels/
 wandb/
 logs/
 *.csv
+*.log
 .vscode
 
 .python-version
