@@ -37,6 +37,9 @@ class VLMConfig:
     vit_layer_scale: bool = False  # True for DINOv3
     vit_layer_scale_init: float = 1.0  # LayerScale initialization
     vit_drop_path_rate: float = 0.0  # Stochastic depth rate
+    vit_rope_augment: bool = (
+        True  # Enable RoPE augmentations during training (DINOv3 paper)
+    )
 
     # === Language Model Configuration ===
     # Model selection
@@ -125,6 +128,7 @@ class TrainConfig:
     max_sample_length: int = 1024
     compile: bool = False
     resume_from_vlm_checkpoint: bool = False  # Indicate if the training should be resumed from a checkpoint of the whole VLM or you want to start from scratch
+    freeze_vision_encoder: bool = False  # Freeze vision encoder weights during training (Locked-image Text tuning)
     train_dataset_path: str = "HuggingFaceM4/the_cauldron"
     train_dataset_name: tuple[str, ...] = ("all",)
     wandb_entity: str = None  # Leave as None to use your default wandb entity
@@ -152,11 +156,12 @@ def get_dinov3_gemma_config():
         vit_cls_flag=True,
         vit_num_registers=4,  # DINOv3 has 4 register tokens
         vit_use_swiglu=True,  # DINOv3 DOES use gated MLP (SwiGLU)
-        vit_use_rope=False,  # DINOv3 doesn't use RoPE (uses sin/cos instead)
+        vit_use_rope=True,  # DINOv3 paper recommends RoPE for improved spatial encoding
         vit_use_sincos_pos=True,  # DINOv3 uses sin/cos position embeddings
         vit_layer_scale=True,  # DINOv3 uses LayerScale
         vit_layer_scale_init=1.0,
         vit_drop_path_rate=0.0,  # No dropout in pretrained model
+        vit_rope_augment=True,  # Enable RoPE augmentations during training
         vit_img_size=224,  # DINOv3 default image size
         vit_patch_size=16,
         # Dimensions will be auto-detected from model

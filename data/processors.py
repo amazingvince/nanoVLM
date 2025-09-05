@@ -97,11 +97,14 @@ def get_image_string(tokenizer, splitted_image_counts, mp_image_token_length):
             image_string += f"<image: {idx}>"
         for i in range(n_h):
             for j in range(n_w):
-                # Use grid tokens if available, otherwise just use image tokens
-                # This handles cases where we have more than 4x4 grid due to padding
+                # Use grid tokens if available, otherwise fall back to generic image token
+                # This handles cases where we have more than 4x4 grid due to aspect ratio
                 grid_token_name = f"r{i + 1}c{j + 1}"
                 if hasattr(tokenizer, grid_token_name):
                     image_string += getattr(tokenizer, grid_token_name)
-                # Always add the image tokens regardless
+                else:
+                    # Fallback to generic image token if specific grid token doesn't exist
+                    image_string += tokenizer.image_token
+                # Always add the image tokens for the patch content
                 image_string += tokenizer.image_token * mp_image_token_length
     return image_string

@@ -12,12 +12,12 @@ import PIL.PngImagePlugin
 import torch
 import torch.distributed as dist
 import torch.optim as optim
-import wandb
 from datasets import concatenate_datasets, get_dataset_config_names, load_dataset
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 
 import models.config as config
+import wandb
 from data.advanced_datasets import ConstantLengthDataset
 from data.collators import VQACollator
 from data.data_utils import synchronized_dataloader_step
@@ -307,18 +307,36 @@ def train(train_cfg, vlm_cfg):
     # You could opt to fully freeze the backbones and only train the MP layer, but finetuning them with a lower learning rate makes the training as a whole easier
     param_groups = [{"params": list(model.MP.parameters()), "lr": train_cfg.lr_mp}]
 
-    if train_cfg.lr_backbones > 0:
+    # Handle vision encoder freezing/training
+    if train_cfg.freeze_vision_encoder:
+        # Freeze vision encoder completely (DINOv3 paper's Locked-image Text tuning approach)
+        for p in model.vision_encoder.parameters():
+            p.requires_grad = False
+        if is_master():
+            print("Vision encoder weights are frozen (Locked-image Text tuning)")
+    elif train_cfg.lr_backbones > 0:
+        # Train vision encoder with lower learning rate
         param_groups.append(
             {
-                "params": list(model.decoder.parameters())
-                + list(model.vision_encoder.parameters()),
+                "params": list(model.vision_encoder.parameters()),
                 "lr": train_cfg.lr_backbones,
             }
         )
     else:
-        for p in list(model.decoder.parameters()) + list(
-            model.vision_encoder.parameters()
-        ):
+        # lr_backbones = 0 also freezes vision encoder
+        for p in model.vision_encoder.parameters():
+            p.requires_grad = False
+
+    # Handle language model training
+    if train_cfg.lr_backbones > 0:
+        param_groups.append(
+            {
+                "params": list(model.decoder.parameters()),
+                "lr": train_cfg.lr_backbones,
+            }
+        )
+    else:
+        for p in model.decoder.parameters():
             p.requires_grad = False
 
     optimizer = optim.AdamW(param_groups)
@@ -781,6 +799,11 @@ def main():
         help="Resume training from VLM checkpoint specified by vlm_checkpoint_path (or default if not provided)",
     )
     parser.add_argument(
+        "--freeze_vision_encoder",
+        action="store_true",
+        help="Freeze vision encoder weights (Locked-image Text tuning as per DINOv3 paper)",
+    )
+    parser.add_argument(
         "--no_log_wandb", action="store_true", help="Do not log to wandb"
     )
     parser.add_argument(
@@ -841,6 +864,12 @@ def main():
         train_cfg.compile = args.compile
     if args.no_log_wandb is True:
         train_cfg.log_wandb = False
+    if args.freeze_vision_encoder:
+        train_cfg.freeze_vision_encoder = True
+        # When using DINOv3 preset with frozen encoder, default to True
+        if args.use_preset == "dinov3_gemma":
+            if is_master():
+                print("Using frozen vision encoder with DINOv3 (recommended by paper)")
     if args.num_workers is not None:
         train_cfg.num_workers = args.num_workers
     if args.max_threads is not None:

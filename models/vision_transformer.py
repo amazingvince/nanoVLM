@@ -107,6 +107,24 @@ class DINOv3RoPEPositionEmbedding(nn.Module):
             num_patches_h, num_patches_w, torch.float32, device
         )
 
+        # Apply augmentations during training (as per DINOv3 paper)
+        if (
+            self.training
+            and hasattr(self.cfg, "vit_rope_augment")
+            and self.cfg.vit_rope_augment
+        ):
+            # Random shift (up to 10% of the range)
+            shift = (torch.rand(2, device=device) - 0.5) * 0.2
+            patch_coords = patch_coords + shift[None, :]
+
+            # Random jitter (small noise)
+            jitter = torch.randn_like(patch_coords) * 0.01
+            patch_coords = patch_coords + jitter
+
+            # Random rescale (95% to 105%)
+            scale = 0.95 + torch.rand(1, device=device).item() * 0.1
+            patch_coords = patch_coords * scale
+
         # Apply inverse frequencies to get angles
         # (height * width, 2, head_dim/4) -> (height * width, head_dim/2) -> (height * width, head_dim)
         angles = 2 * math.pi * patch_coords[:, :, None] * self.inv_freq[None, None, :]

@@ -164,7 +164,6 @@ class VisionLanguageModel(nn.Module):
 
         # --- Decode Phase by sampling tokens autoregressively using the kv-cache ---
         for _ in range(max_new_tokens):
-
             # Tell the compiler a new step is beginning
             torch.compiler.cudagraph_mark_step_begin()
 
