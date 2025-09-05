@@ -885,6 +885,10 @@ def main():
                 vlm_cfg.vit_img_size = 224  # DINOv3 default size
             vlm_cfg.vit_cls_flag = True
             vlm_cfg.mp_handle_special_tokens = True
+            # For 224x224 images with patch_size=16, we get 14x14 patches
+            # Need pixel_shuffle_factor=2 (not 4) since 14 % 4 != 0
+            vlm_cfg.mp_pixel_shuffle_factor = 2
+            vlm_cfg.mp_image_token_length = 49  # (14/2)^2 = 7^2 = 49
 
         # Update language model configuration
         if args.language_model == "gemma":
