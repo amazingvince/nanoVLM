@@ -54,7 +54,9 @@ class VLMConfig:
     extra_token_amount: int = (
         17  # Number of extra tokens for the VLM (image start, image end, image token)
     )
-    lm_vocab_size: int = field(init=False)  # Will be computed with rounding for GPU efficiency
+    lm_vocab_size: int = field(
+        init=False
+    )  # Will be computed with rounding for GPU efficiency
     lm_n_heads: int = 15
     lm_n_kv_heads: int = 5
     lm_dropout: float = 0.0
@@ -96,7 +98,7 @@ class VLMConfig:
     vlm_load_backbone_weights: bool = True
     vlm_checkpoint_path: str = "checkpoints"
     hf_repo_name: str = "nanoVLM"
-    
+
     def __post_init__(self):
         # Round vocab size to nearest multiple of 128 for GPU efficiency
         self.lm_vocab_size = round_up_to_multiple(
