@@ -7,7 +7,7 @@ from typing import Optional
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from safetensors.torch import load_model, save_model
+from safetensors.torch import save_model
 
 from data.processors import get_tokenizer
 from models.config import VLMConfig

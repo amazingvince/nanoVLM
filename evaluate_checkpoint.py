@@ -6,9 +6,9 @@ Evaluate a saved checkpoint and save metrics to JSON.
 import argparse
 import json
 import os
-from pathlib import Path
 
 import torch
+
 from evaluation import cli_evaluate
 from models.vision_language_model import VisionLanguageModel
 

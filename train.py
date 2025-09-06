@@ -12,7 +12,8 @@ import PIL.PngImagePlugin
 import torch
 import torch.distributed as dist
 import torch.optim as optim
-from datasets import concatenate_datasets, get_dataset_config_names, load_dataset
+from datasets import (concatenate_datasets, get_dataset_config_names,
+                      load_dataset)
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 

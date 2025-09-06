@@ -6,9 +6,9 @@ Simple evaluation script for saved checkpoints.
 import argparse
 import json
 import os
-from pathlib import Path
 
 import torch
+
 from models.vision_language_model import VisionLanguageModel
 
 
@@ -59,7 +59,7 @@ def main():
 
     # Import and run evaluation
     from evaluation import cli_evaluate
-    
+
     # Create eval args for cli_evaluate
     class EvalArgs:
         def __init__(self):

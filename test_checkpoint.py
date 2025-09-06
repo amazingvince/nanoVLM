@@ -6,8 +6,8 @@ Direct evaluation of a checkpoint without using cli_evaluate.
 import json
 import os
 import sys
+
 import torch
-from pathlib import Path
 
 # Test loading the checkpoint
 checkpoint_path = "checkpoints/nanoVLM_dinov3-vitb16-pretrain-lvd1689m_1024_mp2_gemma-3-270m-it_1xGPU_423791samples_bs64_5000_lr5e-05-0.00512_0905-221819/step_3000"
@@ -33,7 +33,7 @@ try:
     if os.path.exists(tokenizer_path):
         from transformers import AutoTokenizer
         tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
-        print(f"✓ Tokenizer loaded from checkpoint")
+        print("✓ Tokenizer loaded from checkpoint")
     else:
         print(f"✗ No tokenizer found at {tokenizer_path}")
         print(f"  Using tokenizer from config: {model.cfg.lm_tokenizer}")
@@ -43,18 +43,18 @@ try:
             model.cfg.vlm_extra_tokens, 
             model.cfg.lm_chat_template
         )
-        print(f"✓ Tokenizer loaded from HuggingFace")
+        print("✓ Tokenizer loaded from HuggingFace")
     
     if os.path.exists(processor_path):
         from transformers import AutoProcessor
         processor = AutoProcessor.from_pretrained(processor_path)
-        print(f"✓ Image processor loaded from checkpoint")
+        print("✓ Image processor loaded from checkpoint")
     else:
         print(f"✗ No processor found at {processor_path}")
         print(f"  Using processor from config: {model.cfg.vit_model_type}")
         from transformers import AutoImageProcessor
         processor = AutoImageProcessor.from_pretrained(model.cfg.vit_model_type)
-        print(f"✓ Image processor loaded from HuggingFace")
+        print("✓ Image processor loaded from HuggingFace")
     
     # Test a simple forward pass with dummy data
     print("\nTesting forward pass...")
@@ -64,7 +64,7 @@ try:
         dummy_attention_mask = torch.ones(1, 10).to(device)
         
         logits, loss = model(dummy_input, dummy_images, dummy_attention_mask)
-        print(f"✓ Forward pass successful")
+        print("✓ Forward pass successful")
         print(f"  Output shape: {logits.shape}")
     
     # Save a simple test result
@@ -84,8 +84,8 @@ try:
     
     print(f"\n✓ Test results saved to {output_path}")
     print("\nSummary:")
-    print(f"  - Model loaded: ✓")
-    print(f"  - Forward pass: ✓")  
+    print("  - Model loaded: ✓")
+    print("  - Forward pass: ✓")  
     print(f"  - Tokenizer: {'✓ (from checkpoint)' if os.path.exists(tokenizer_path) else '✓ (from HuggingFace)'}")
     print(f"  - Processor: {'✓ (from checkpoint)' if os.path.exists(processor_path) else '✓ (from HuggingFace)'}")
     
@@ -95,9 +95,10 @@ try:
         print("Testing evaluation with lmms_eval...")
         
         # Import evaluation components
-        from eval.lmms_eval_wrapper import NanoVLMWrapper
         from lmms_eval import evaluator
-        
+
+        from eval.lmms_eval_wrapper import NanoVLMWrapper
+
         # Create wrapper for our model
         wrapper = NanoVLMWrapper(model)
         
@@ -113,8 +114,8 @@ try:
         )
         
         if results and "results" in results:
-            print(f"✓ Evaluation completed successfully")
-            print(f"\nResults preview:")
+            print("✓ Evaluation completed successfully")
+            print("\nResults preview:")
             for task, metrics in results["results"].items():
                 print(f"  {task}:")
                 for metric, value in list(metrics.items())[:3]:  # Show first 3 metrics
