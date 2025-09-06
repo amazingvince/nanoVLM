@@ -5,6 +5,7 @@ import os
 import random
 import time
 from dataclasses import asdict
+from pathlib import Path
 from statistics import mean
 
 import numpy
@@ -112,17 +113,17 @@ def get_run_name(train_cfg, vlm_cfg):
 
 def save_tokenizer_and_processor(tokenizer, image_processor, save_directory):
     """Save tokenizer and image processor to checkpoint directory."""
-    import os
-
+    save_directory = Path(save_directory)
+    
     # Save tokenizer
-    tokenizer_dir = os.path.join(save_directory, "tokenizer")
-    os.makedirs(tokenizer_dir, exist_ok=True)
-    tokenizer.save_pretrained(tokenizer_dir)
+    tokenizer_dir = save_directory / "tokenizer"
+    tokenizer_dir.mkdir(parents=True, exist_ok=True)
+    tokenizer.save_pretrained(str(tokenizer_dir))
 
     # Save image processor
-    processor_dir = os.path.join(save_directory, "processor")
-    os.makedirs(processor_dir, exist_ok=True)
-    image_processor.save_pretrained(processor_dir)
+    processor_dir = save_directory / "processor"
+    processor_dir.mkdir(parents=True, exist_ok=True)
+    image_processor.save_pretrained(str(processor_dir))
 
 
 def get_dataloaders(train_cfg, vlm_cfg):
@@ -535,10 +536,8 @@ def train(train_cfg, vlm_cfg):
                             save_model = (
                                 model.module if is_dist() else model
                             )  # unwrap the model for saving if DDP
-                            checkpoint_dir = os.path.join(
-                                vlm_cfg.vlm_checkpoint_path, run_name
-                            )
-                            save_model.save_pretrained(save_directory=checkpoint_dir)
+                            checkpoint_dir = Path(vlm_cfg.vlm_checkpoint_path) / run_name
+                            save_model.save_pretrained(save_directory=str(checkpoint_dir))
                             # Save tokenizer and processor
                             save_tokenizer_and_processor(
                                 tokenizer, image_processor, checkpoint_dir
@@ -717,10 +716,8 @@ def train(train_cfg, vlm_cfg):
                     and is_master()
                 ):
                     save_model = model.module if is_dist() else model
-                    checkpoint_dir = os.path.join(
-                        vlm_cfg.vlm_checkpoint_path, run_name, f"step_{global_step}"
-                    )
-                    save_model.save_pretrained(save_directory=checkpoint_dir)
+                    checkpoint_dir = Path(vlm_cfg.vlm_checkpoint_path) / run_name / f"step_{global_step}"
+                    save_model.save_pretrained(save_directory=str(checkpoint_dir))
                     # Save tokenizer and processor
                     save_tokenizer_and_processor(
                         tokenizer, image_processor, checkpoint_dir
@@ -781,7 +778,7 @@ def train(train_cfg, vlm_cfg):
         if vlm_cfg.hf_repo_name is not None:
             print("Training complete. Pushing model to Hugging Face Hub...")
             hf_model = VisionLanguageModel.from_pretrained(
-                os.path.join(vlm_cfg.vlm_checkpoint_path, run_name)
+                str(Path(vlm_cfg.vlm_checkpoint_path) / run_name)
             )
             hf_model.push_to_hub(vlm_cfg.hf_repo_name)
 
