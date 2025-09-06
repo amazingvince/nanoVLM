@@ -111,17 +111,21 @@ def get_run_name(train_cfg, vlm_cfg):
     return f"nanoVLM_{vit}_{mp}_{llm}_{num_gpus}_{dataset_size}_{batch_size}_{max_training_steps}_{learning_rate}_{date}"
 
 
-def save_tokenizer_and_processor(tokenizer, image_processor, save_directory):
-    """Save tokenizer and image processor to checkpoint directory."""
+def save_tokenizer_and_processor(tokenizer, image_processor, save_directory, vlm_cfg):
+    """Save tokenizer to checkpoint directory.
+    
+    Note: The image processor is recreated from model config at load time,
+    following the original nanoVLM design pattern.
+    """
     save_directory = Path(save_directory)
 
-    # Save tokenizer
+    # Save tokenizer for convenience (though it can be recreated from config)
     tokenizer_dir = save_directory / "tokenizer"
     tokenizer_dir.mkdir(parents=True, exist_ok=True)
     tokenizer.save_pretrained(str(tokenizer_dir))
-
-    # Note: image_processor is a torchvision.transforms.Compose object
-    # which doesn't need to be saved - it's recreated from config
+    
+    # The image processor is a torchvision.transforms.Compose object
+    # that gets recreated from the model's config at load time (see generate.py)
 
 
 def get_dataloaders(train_cfg, vlm_cfg):
@@ -726,7 +730,7 @@ def train(train_cfg, vlm_cfg):
                     save_model.save_pretrained(save_directory=str(checkpoint_dir))
                     # Save tokenizer and processor
                     save_tokenizer_and_processor(
-                        tokenizer, image_processor, checkpoint_dir
+                        tokenizer, image_processor, checkpoint_dir, vlm_cfg
                     )
                     print(f"Saved checkpoint at step {global_step} to {checkpoint_dir}")
 
