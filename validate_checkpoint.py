@@ -262,7 +262,9 @@ def main():
     batches_to_process = args.limit_batches if args.limit_batches else total_batches
 
     print(f"\nRunning validation on {batches_to_process} batches...")
-    print(f"This will process {len(val_dataset)} samples (batch_size={args.batch_size})")
+    print(
+        f"This will process {len(val_dataset)} samples (batch_size={args.batch_size})"
+    )
 
     import time
 
