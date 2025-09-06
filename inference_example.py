@@ -29,6 +29,11 @@ def load_nanovlm_model(checkpoint_path):
     tokenizer_path = checkpoint_path / "tokenizer"
     if tokenizer_path.exists():
         tokenizer = AutoTokenizer.from_pretrained(str(tokenizer_path))
+        # Add image_token_id attribute if missing (needed for model)
+        if not hasattr(tokenizer, 'image_token_id'):
+            image_token = model.cfg.vlm_extra_tokens.get('image_token', '<|image|>')
+            tokenizer.image_token_id = tokenizer.convert_tokens_to_ids(image_token)
+            tokenizer.image_token = image_token
     else:
         # Fall back to loading from HF
         from data.processors import get_tokenizer
@@ -37,6 +42,9 @@ def load_nanovlm_model(checkpoint_path):
             model.cfg.vlm_extra_tokens, 
             model.cfg.lm_chat_template
         )
+    
+    # Set tokenizer in model (needed for image token replacement)
+    model.tokenizer = tokenizer
     
     # Load/create image processor
     processor_path = checkpoint_path / "processor"
@@ -70,9 +78,10 @@ def generate_response(model, tokenizer, image_processor, image_path, prompt, dev
     processed = image_processor(image)
     
     if isinstance(processed, tuple):
-        images, _ = processed
+        images, grid_size = processed
     else:
         images = processed
+        grid_size = (1, 1)  # Single image for DINOv3
     
     # Handle tensor dimensions
     if isinstance(images, list):
@@ -81,15 +90,36 @@ def generate_response(model, tokenizer, image_processor, image_path, prompt, dev
         images = images.unsqueeze(0)  # Add batch dimension
     images = images.to(device)
     
-    # Tokenize prompt
-    # Format as chat if using instruct model
-    if hasattr(tokenizer, "apply_chat_template"):
-        messages = [{"role": "user", "content": prompt}]
-        input_text = tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
-    else:
-        input_text = prompt
+    # Calculate number of image tokens
+    vit_patch_size = grid_size[0] * grid_size[1]
     
-    input_ids = tokenizer(input_text, return_tensors="pt").input_ids.to(device)
+    # Get image token from tokenizer or model config
+    if hasattr(tokenizer, 'image_token'):
+        image_token = tokenizer.image_token
+    else:
+        # Use the image token from model config
+        image_token = model.cfg.vlm_extra_tokens.get('image_token', '<|image|>')
+    
+    image_token_str = image_token * model.cfg.mp_image_token_length * vit_patch_size
+    
+    # Format prompt with image tokens
+    full_prompt = image_token_str + prompt
+    
+    # Format as chat template
+    messages = [{"role": "user", "content": full_prompt}]
+    
+    # Use chat template or fallback to direct format
+    input_text = None
+    try:
+        input_ids = tokenizer.apply_chat_template(messages, add_generation_prompt=True, return_tensors="pt").to(device)
+    except Exception:
+        # Fallback if chat template not available
+        input_text = f"<|im_start|>user\n{full_prompt}<|im_end|>\n<|im_start|>assistant\n"
+        input_ids = tokenizer(input_text, return_tensors="pt").input_ids.to(device)
+    
+    # Ensure input_ids is 2D
+    if input_ids.dim() == 1:
+        input_ids = input_ids.unsqueeze(0)
     
     # Generate response
     with torch.no_grad():
@@ -105,7 +135,7 @@ def generate_response(model, tokenizer, image_processor, image_path, prompt, dev
     generated_text = tokenizer.decode(generated_ids[0], skip_special_tokens=True)
     
     # Remove the prompt from generated text if present
-    if generated_text.startswith(input_text):
+    if input_text and generated_text.startswith(input_text):
         generated_text = generated_text[len(input_text):].strip()
     
     return generated_text

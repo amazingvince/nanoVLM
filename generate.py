@@ -92,7 +92,16 @@ def main():
         [messages], tokenize=True, add_generation_prompt=True
     )
     tokens = torch.tensor(encoded_prompt).to(device)
-    img_t = processed_image.to(device)
+    
+    # Handle image tensor dimensions
+    if isinstance(processed_image, list):
+        img_t = torch.stack(processed_image).to(device)
+    else:
+        img_t = processed_image.to(device)
+    
+    # Add batch dimension if needed
+    if img_t.dim() == 3:
+        img_t = img_t.unsqueeze(0)
 
     print("\nInput:\n ", args.prompt, "\n\nOutputs:")
     for i in range(args.generations):
