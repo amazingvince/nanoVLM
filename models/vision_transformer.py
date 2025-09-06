@@ -535,19 +535,37 @@ class ViT(nn.Module):
                 if cfg.vit_use_swiglu:
                     # DINOv3+ models use SwiGLU with gate_proj
                     # mapping[hf_key] = our_key
-                    mapping[f"layer.{i}.mlp.gate_proj.weight"] = f"blocks.{i}.mlp.gate_proj.weight"
-                    mapping[f"layer.{i}.mlp.gate_proj.bias"] = f"blocks.{i}.mlp.gate_proj.bias"
-                    mapping[f"layer.{i}.mlp.up_proj.weight"] = f"blocks.{i}.mlp.up_proj.weight"
-                    mapping[f"layer.{i}.mlp.up_proj.bias"] = f"blocks.{i}.mlp.up_proj.bias"
-                    mapping[f"layer.{i}.mlp.down_proj.weight"] = f"blocks.{i}.mlp.down_proj.weight"
-                    mapping[f"layer.{i}.mlp.down_proj.bias"] = f"blocks.{i}.mlp.down_proj.bias"
+                    mapping[f"layer.{i}.mlp.gate_proj.weight"] = (
+                        f"blocks.{i}.mlp.gate_proj.weight"
+                    )
+                    mapping[f"layer.{i}.mlp.gate_proj.bias"] = (
+                        f"blocks.{i}.mlp.gate_proj.bias"
+                    )
+                    mapping[f"layer.{i}.mlp.up_proj.weight"] = (
+                        f"blocks.{i}.mlp.up_proj.weight"
+                    )
+                    mapping[f"layer.{i}.mlp.up_proj.bias"] = (
+                        f"blocks.{i}.mlp.up_proj.bias"
+                    )
+                    mapping[f"layer.{i}.mlp.down_proj.weight"] = (
+                        f"blocks.{i}.mlp.down_proj.weight"
+                    )
+                    mapping[f"layer.{i}.mlp.down_proj.bias"] = (
+                        f"blocks.{i}.mlp.down_proj.bias"
+                    )
                 else:
                     # Regular DINOv3 models use standard MLP
                     # mapping[hf_key] = our_key
-                    mapping[f"layer.{i}.mlp.up_proj.weight"] = f"blocks.{i}.mlp.fc1.weight"
+                    mapping[f"layer.{i}.mlp.up_proj.weight"] = (
+                        f"blocks.{i}.mlp.fc1.weight"
+                    )
                     mapping[f"layer.{i}.mlp.up_proj.bias"] = f"blocks.{i}.mlp.fc1.bias"
-                    mapping[f"layer.{i}.mlp.down_proj.weight"] = f"blocks.{i}.mlp.fc2.weight"
-                    mapping[f"layer.{i}.mlp.down_proj.bias"] = f"blocks.{i}.mlp.fc2.bias"
+                    mapping[f"layer.{i}.mlp.down_proj.weight"] = (
+                        f"blocks.{i}.mlp.fc2.weight"
+                    )
+                    mapping[f"layer.{i}.mlp.down_proj.bias"] = (
+                        f"blocks.{i}.mlp.fc2.bias"
+                    )
         elif is_dinov2:
             # DINOv2 weight mapping
             mapping = {

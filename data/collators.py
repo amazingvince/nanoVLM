@@ -27,11 +27,26 @@ class BaseCollator(object):
 
     def prepare_batch(self, batch, max_length=None):
         # batch is a list of dicts, each containing "input_ids", "attention_mask", "labels", "images"
+        # Sometimes batch can be a tuple (especially during validation), convert to list
+        if isinstance(batch, tuple):
+            batch = list(batch)
+
         # let's convert it to a dict of lists of tensors
         batch = {k: [item[k] for item in batch] for k in batch[0]}
 
         if max_length is not None:
             batch = self._discard_samples_that_are_too_long(batch, max_length)
+
+        # Check if batch is empty after filtering
+        if not batch["input_ids"]:
+            # Return a minimal valid batch with single dummy sample
+            dummy_len = max_length if max_length else 10
+            return {
+                "input_ids": torch.zeros(1, dummy_len, dtype=torch.long),
+                "attention_mask": torch.zeros(1, dummy_len, dtype=torch.long),
+                "images": [[]],  # Empty image list
+                "labels": torch.full((1, dummy_len), -100, dtype=torch.long),
+            }
 
         # Pad samples to max length
         if max_length is not None:
@@ -61,7 +76,13 @@ class BaseCollator(object):
             if len(ids) <= max_length
         ]
         if not filtered:
-            return [], [], [], []
+            # Return empty dict instead of tuple when no samples pass filter
+            return {
+                "input_ids": [],
+                "labels": [],
+                "attention_mask": [],
+                "images": [],
+            }
         batch_token_ids, batch_labels, batch_attentions, batch_images = zip(*filtered)
         return {
             "input_ids": list(batch_token_ids),

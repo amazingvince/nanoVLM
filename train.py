@@ -110,6 +110,21 @@ def get_run_name(train_cfg, vlm_cfg):
     return f"nanoVLM_{vit}_{mp}_{llm}_{num_gpus}_{dataset_size}_{batch_size}_{max_training_steps}_{learning_rate}_{date}"
 
 
+def save_tokenizer_and_processor(tokenizer, image_processor, save_directory):
+    """Save tokenizer and image processor to checkpoint directory."""
+    import os
+
+    # Save tokenizer
+    tokenizer_dir = os.path.join(save_directory, "tokenizer")
+    os.makedirs(tokenizer_dir, exist_ok=True)
+    tokenizer.save_pretrained(tokenizer_dir)
+
+    # Save image processor
+    processor_dir = os.path.join(save_directory, "processor")
+    os.makedirs(processor_dir, exist_ok=True)
+    image_processor.save_pretrained(processor_dir)
+
+
 def get_dataloaders(train_cfg, vlm_cfg):
     # Create datasets
     # Use single image mode for DINOv3 (resize to 224x224 instead of splitting)
@@ -120,6 +135,9 @@ def get_dataloaders(train_cfg, vlm_cfg):
     tokenizer = get_tokenizer(
         vlm_cfg.lm_tokenizer, vlm_cfg.vlm_extra_tokens, vlm_cfg.lm_chat_template
     )
+
+    # Return tokenizer and image_processor along with dataloaders
+    # so they can be saved with checkpoints
 
     # Load and combine all training datasets
     combined_train_data = []
@@ -231,7 +249,7 @@ def get_dataloaders(train_cfg, vlm_cfg):
         generator=g,
     )
 
-    return train_loader, val_loader
+    return train_loader, val_loader, tokenizer, image_processor
 
 
 # Cosine learning rate schedule with warmup (from Karpathy)
@@ -258,7 +276,9 @@ def train(train_cfg, vlm_cfg):
     # Set thread limits before creating dataloaders
     set_thread_limits(train_cfg.max_threads)
 
-    train_loader, val_loader = get_dataloaders(train_cfg, vlm_cfg)
+    train_loader, val_loader, tokenizer, image_processor = get_dataloaders(
+        train_cfg, vlm_cfg
+    )
 
     run_name = get_run_name(train_cfg, vlm_cfg)
     total_dataset_size = len(train_loader.dataset)
@@ -515,10 +535,13 @@ def train(train_cfg, vlm_cfg):
                             save_model = (
                                 model.module if is_dist() else model
                             )  # unwrap the model for saving if DDP
-                            save_model.save_pretrained(
-                                save_directory=os.path.join(
-                                    vlm_cfg.vlm_checkpoint_path, run_name
-                                )
+                            checkpoint_dir = os.path.join(
+                                vlm_cfg.vlm_checkpoint_path, run_name
+                            )
+                            save_model.save_pretrained(save_directory=checkpoint_dir)
+                            # Save tokenizer and processor
+                            save_tokenizer_and_processor(
+                                tokenizer, image_processor, checkpoint_dir
                             )
 
                     lmms_results = {}
@@ -698,6 +721,10 @@ def train(train_cfg, vlm_cfg):
                         vlm_cfg.vlm_checkpoint_path, run_name, f"step_{global_step}"
                     )
                     save_model.save_pretrained(save_directory=checkpoint_dir)
+                    # Save tokenizer and processor
+                    save_tokenizer_and_processor(
+                        tokenizer, image_processor, checkpoint_dir
+                    )
                     print(f"Saved checkpoint at step {global_step} to {checkpoint_dir}")
 
                 if global_step >= train_cfg.max_training_steps:
