@@ -62,6 +62,7 @@ class VLMConfig:
     )  # Will be computed with rounding for GPU efficiency
     lm_n_heads: int = 15
     lm_n_kv_heads: int = 5
+    lm_head_dim: int = None  # Optional custom head dimension (e.g., Gemma-3 uses 256)
     lm_dropout: float = 0.0
     lm_n_blocks: int = 32
     lm_attn_scaling: float = 1.0

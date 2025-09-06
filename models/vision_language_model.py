@@ -308,13 +308,29 @@ class VisionLanguageModel(nn.Module):
 
         # Load config
         with open(config_path, "r") as f:
-            cfg = VLMConfig(**json.load(f))
+            config_dict = json.load(f)
+            # Remove computed fields that shouldn't be in __init__
+            config_dict.pop("lm_vocab_size", None)  # This is computed in __post_init__
+            cfg = VLMConfig(**config_dict)
 
         # Initialize model without loading the backbone
         model = cls(cfg, load_backbone=False)
 
-        # Load safetensors weights
-        load_model(model, weights_path)
+        # Load safetensors weights with strict=False to ignore buffer mismatches
+        import safetensors.torch
+        state_dict = safetensors.torch.load_file(weights_path)
+        
+        # Remove buffer entries that shouldn't be loaded (they're recomputed on init)
+        keys_to_remove = []
+        for key in state_dict.keys():
+            if "rotary_embd.inv_freq" in key:
+                keys_to_remove.append(key)
+        
+        for key in keys_to_remove:
+            del state_dict[key]
+        
+        # Load the cleaned state dict
+        model.load_state_dict(state_dict, strict=False)
 
         # Done!
         return model
@@ -329,9 +345,16 @@ class VisionLanguageModel(nn.Module):
         # Create directory if it doesn't exist
         os.makedirs(save_directory, exist_ok=True)
 
-        # Save config
+        # Save config with all necessary fields
+        config_dict = asdict(self.cfg)
+        
+        # Add computed fields that might be needed for loading
+        # Check if lm_head_dim was set (for models like Gemma-3)
+        if hasattr(self.cfg, "lm_head_dim"):
+            config_dict["lm_head_dim"] = self.cfg.lm_head_dim
+            
         with open(os.path.join(save_directory, "config.json"), "w") as f:
-            f.write(json.dumps(asdict(self.cfg), indent=4))
+            f.write(json.dumps(config_dict, indent=4))
 
         # Save weights as safetensors
         save_model(self, os.path.join(save_directory, "model.safetensors"))
