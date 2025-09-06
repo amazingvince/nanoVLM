@@ -766,7 +766,7 @@ def train(train_cfg, vlm_cfg):
 
 def main():
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.DefaultsHelpFormatter,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         epilog="If no arguments are passed, uses original 460M siglip+smolLM2 configuration",
     )
 
