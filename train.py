@@ -974,6 +974,7 @@ def main():
             vlm_cfg.lm_model_type = "google/gemma-3-270m-it"  # Real Gemma 3 270M model
             vlm_cfg.lm_tokenizer = "google/gemma-3-270m-it"
             vlm_cfg.lm_base_vocab_size = 262144  # Gemma-3 actual vocab size
+            vlm_cfg.lm_head_dim = 256  # Gemma-3 uses custom head_dim of 256
             # Recalculate vocab size with extra tokens
             vlm_cfg.lm_vocab_size = config.round_up_to_multiple(
                 vlm_cfg.lm_base_vocab_size + vlm_cfg.extra_token_amount
