@@ -496,12 +496,13 @@ class ViT(nn.Module):
         sd = model.state_dict()
 
         if is_dinov3:
-            # DINOv3 weight mapping - actual keys from the model
+            # DINOv3 weight mapping - HF keys -> our keys
             mapping = {
                 "embeddings.patch_embeddings.weight": "patch_embedding.conv.weight",
                 "embeddings.patch_embeddings.bias": "patch_embedding.conv.bias",
-                "embeddings.cls_token": "patch_embedding.cls_token",
-                "embeddings.register_tokens": "patch_embedding.register_tokens",
+                # Note: cls_token and register_tokens don't exist in our model
+                # "embeddings.cls_token": "patch_embedding.cls_token",
+                # "embeddings.register_tokens": "patch_embedding.register_tokens",
                 "norm.weight": "layer_norm.weight",
                 "norm.bias": "layer_norm.bias",
             }
@@ -533,38 +534,20 @@ class ViT(nn.Module):
                 # MLP - Check if this DINOv3 model uses gated MLP (SwiGLU)
                 if cfg.vit_use_swiglu:
                     # DINOv3+ models use SwiGLU with gate_proj
-                    # Our model: blocks.X.mlp.gate_proj <- HF: layer.X.mlp.gate_proj
-                    mapping[f"blocks.{i}.mlp.gate_proj.weight"] = (
-                        f"layer.{i}.mlp.gate_proj.weight"
-                    )
-                    mapping[f"blocks.{i}.mlp.gate_proj.bias"] = (
-                        f"layer.{i}.mlp.gate_proj.bias"
-                    )
-                    mapping[f"blocks.{i}.mlp.up_proj.weight"] = (
-                        f"layer.{i}.mlp.up_proj.weight"
-                    )
-                    mapping[f"blocks.{i}.mlp.up_proj.bias"] = (
-                        f"layer.{i}.mlp.up_proj.bias"
-                    )
-                    mapping[f"blocks.{i}.mlp.down_proj.weight"] = (
-                        f"layer.{i}.mlp.down_proj.weight"
-                    )
-                    mapping[f"blocks.{i}.mlp.down_proj.bias"] = (
-                        f"layer.{i}.mlp.down_proj.bias"
-                    )
+                    # mapping[hf_key] = our_key
+                    mapping[f"layer.{i}.mlp.gate_proj.weight"] = f"blocks.{i}.mlp.gate_proj.weight"
+                    mapping[f"layer.{i}.mlp.gate_proj.bias"] = f"blocks.{i}.mlp.gate_proj.bias"
+                    mapping[f"layer.{i}.mlp.up_proj.weight"] = f"blocks.{i}.mlp.up_proj.weight"
+                    mapping[f"layer.{i}.mlp.up_proj.bias"] = f"blocks.{i}.mlp.up_proj.bias"
+                    mapping[f"layer.{i}.mlp.down_proj.weight"] = f"blocks.{i}.mlp.down_proj.weight"
+                    mapping[f"layer.{i}.mlp.down_proj.bias"] = f"blocks.{i}.mlp.down_proj.bias"
                 else:
                     # Regular DINOv3 models use standard MLP
-                    # Our model: blocks.X.mlp.fc1/fc2 <- HF: layer.X.mlp.up_proj/down_proj
-                    mapping[f"blocks.{i}.mlp.fc1.weight"] = (
-                        f"layer.{i}.mlp.up_proj.weight"
-                    )
-                    mapping[f"blocks.{i}.mlp.fc1.bias"] = f"layer.{i}.mlp.up_proj.bias"
-                    mapping[f"blocks.{i}.mlp.fc2.weight"] = (
-                        f"layer.{i}.mlp.down_proj.weight"
-                    )
-                    mapping[f"blocks.{i}.mlp.fc2.bias"] = (
-                        f"layer.{i}.mlp.down_proj.bias"
-                    )
+                    # mapping[hf_key] = our_key
+                    mapping[f"layer.{i}.mlp.up_proj.weight"] = f"blocks.{i}.mlp.fc1.weight"
+                    mapping[f"layer.{i}.mlp.up_proj.bias"] = f"blocks.{i}.mlp.fc1.bias"
+                    mapping[f"layer.{i}.mlp.down_proj.weight"] = f"blocks.{i}.mlp.fc2.weight"
+                    mapping[f"layer.{i}.mlp.down_proj.bias"] = f"blocks.{i}.mlp.fc2.bias"
         elif is_dinov2:
             # DINOv2 weight mapping
             mapping = {
@@ -623,7 +606,7 @@ class ViT(nn.Module):
         with safetensors.safe_open(
             filename=safetensors_file, framework="pt", device="cpu"
         ) as f:
-            for our_key, hf_key in mapping.items():
+            for hf_key, our_key in mapping.items():
                 if hf_key in f.keys() and our_key in sd:
                     tensor = f.get_tensor(hf_key)
                     if tensor.shape == sd[our_key].shape:
