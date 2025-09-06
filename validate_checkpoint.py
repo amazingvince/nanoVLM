@@ -70,28 +70,16 @@ def get_parser():
         help="Path to the checkpoint directory (e.g., checkpoints/model_name/step_3000)",
     )
     parser.add_argument(
-        "--num_samples",
-        type=int,
-        default=100,
-        help="Number of validation samples to use",
-    )
-    parser.add_argument(
         "--batch_size",
         type=int,
         default=4,
         help="Batch size for validation",
     )
     parser.add_argument(
-        "--num_batches",
+        "--limit_batches",
         type=int,
-        default=10,
-        help="Maximum number of batches to process",
-    )
-    parser.add_argument(
-        "--dataset_subset",
-        type=str,
-        default="vqav2",
-        help="Dataset subset to use for validation",
+        default=None,
+        help="Limit validation to N batches for quick testing (default: run all)",
     )
     return parser
 
@@ -150,33 +138,47 @@ def main():
         )
         print(f"✓ Image processor loaded from HuggingFace: {cfg.vit_model_type}")
 
-    # Load the HuggingFace dataset
-    print("\nLoading HuggingFace dataset...")
-    from datasets import load_dataset
+    # Load the SAME dataset as train.py uses
+    print("\nLoading the_cauldron dataset (same as training)...")
+    from datasets import concatenate_datasets, get_dataset_config_names, load_dataset
 
-    # Load a small subset for validation
-    train_ds = load_dataset(
-        train_cfg.train_dataset_path,
-        args.dataset_subset,
-        split="train",
-        streaming=True,
-    )
-
-    # Convert to list and take a small subset for validation
-    samples = []
-    for i, sample in enumerate(train_ds):
-        if i >= args.num_samples:
-            break
-        samples.append(sample)
-
-    from datasets import Dataset
-
-    val_ds = Dataset.from_list(samples)
-
-    # Create validation dataset
-    print("Creating validation dataset...")
+    # Load ALL dataset configs just like train.py
+    combined_train_data = []
+    dataset_names_to_load = train_cfg.train_dataset_name
+    
+    if "all" in dataset_names_to_load:
+        dataset_names_to_load = get_dataset_config_names(train_cfg.train_dataset_path)
+    
+    for dataset_name in dataset_names_to_load:
+        try:
+            train_ds = load_dataset(
+                train_cfg.train_dataset_path,
+                dataset_name,
+                num_proc=1,
+            )
+            train_ds["train"][0]  # Check if loaded correctly
+            combined_train_data.append(train_ds["train"])
+        except Exception as e:
+            print(f"Warning: Failed to load '{dataset_name}': {e}")
+            continue
+    
+    if not combined_train_data:
+        raise ValueError("No valid datasets were loaded!")
+    
+    # Concatenate and shuffle with SAME seed as training
+    train_ds = concatenate_datasets(combined_train_data)
+    train_ds = train_ds.shuffle(seed=0)
+    
+    # Calculate split EXACTLY as train.py does
+    total_samples = len(train_ds)
+    val_size = int(total_samples * train_cfg.val_ratio)
+    train_size = total_samples - val_size
+    
+    print(f"Dataset: {train_size} train, {val_size} validation samples")
+    
+    # Create validation dataset from the SAME split as training
     val_dataset = VQADataset(
-        val_ds,
+        train_ds.select(range(train_size, total_samples)),
         tokenizer,
         image_processor,
         cfg.mp_image_token_length,
@@ -194,13 +196,20 @@ def main():
     )
 
     # Run validation
-    print("\nRunning validation...")
+    total_batches = len(val_loader)
+    batches_to_process = args.limit_batches if args.limit_batches else total_batches
+    
+    print(f"\nRunning validation on {batches_to_process}/{total_batches} batches...")
+    print(f"This will process {batches_to_process * args.batch_size}/{len(val_dataset)} samples")
+    
+    import time
+    start_time = time.time()
     total_val_loss = 0
     num_batches = 0
 
     with torch.no_grad():
-        for batch_idx, batch in enumerate(tqdm(val_loader, desc="Validation")):
-            if batch_idx >= args.num_batches:
+        for batch_idx, batch in enumerate(tqdm(val_loader, desc="Validation", total=batches_to_process)):
+            if args.limit_batches and batch_idx >= args.limit_batches:
                 break
 
             input_ids = batch["input_ids"].to(device)
@@ -223,10 +232,14 @@ def main():
                 print(f"\nError in batch {batch_idx}: {e}")
                 continue
 
+    elapsed_time = time.time() - start_time
+    
     if num_batches > 0:
         avg_val_loss = total_val_loss / num_batches
-        print("\n✓ Validation completed")
+        print(f"\n✓ Validation completed in {elapsed_time:.1f} seconds")
         print(f"  Average validation loss: {avg_val_loss:.4f}")
+        print(f"  Batches processed: {num_batches}/{total_batches}")
+        print(f"  Samples processed: {num_batches * args.batch_size}/{len(val_dataset)}")
 
         # Save results
         output_path = os.path.join(checkpoint_path, "validation_results.json")
