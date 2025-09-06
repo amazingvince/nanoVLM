@@ -114,7 +114,7 @@ def get_run_name(train_cfg, vlm_cfg):
 def save_tokenizer_and_processor(tokenizer, image_processor, save_directory):
     """Save tokenizer and image processor to checkpoint directory."""
     save_directory = Path(save_directory)
-    
+
     # Save tokenizer
     tokenizer_dir = save_directory / "tokenizer"
     tokenizer_dir.mkdir(parents=True, exist_ok=True)
@@ -536,8 +536,12 @@ def train(train_cfg, vlm_cfg):
                             save_model = (
                                 model.module if is_dist() else model
                             )  # unwrap the model for saving if DDP
-                            checkpoint_dir = Path(vlm_cfg.vlm_checkpoint_path) / run_name
-                            save_model.save_pretrained(save_directory=str(checkpoint_dir))
+                            checkpoint_dir = (
+                                Path(vlm_cfg.vlm_checkpoint_path) / run_name
+                            )
+                            save_model.save_pretrained(
+                                save_directory=str(checkpoint_dir)
+                            )
                             # Save tokenizer and processor
                             save_tokenizer_and_processor(
                                 tokenizer, image_processor, checkpoint_dir
@@ -716,7 +720,11 @@ def train(train_cfg, vlm_cfg):
                     and is_master()
                 ):
                     save_model = model.module if is_dist() else model
-                    checkpoint_dir = Path(vlm_cfg.vlm_checkpoint_path) / run_name / f"step_{global_step}"
+                    checkpoint_dir = (
+                        Path(vlm_cfg.vlm_checkpoint_path)
+                        / run_name
+                        / f"step_{global_step}"
+                    )
                     save_model.save_pretrained(save_directory=str(checkpoint_dir))
                     # Save tokenizer and processor
                     save_tokenizer_and_processor(

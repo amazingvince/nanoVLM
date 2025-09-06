@@ -20,15 +20,71 @@ def generate_sample_outputs(model, dataset, tokenizer, checkpoint_path, device):
 
     sample_outputs = []
 
-    # For now, let's create a working version that shows sample prompts
-    # The generation can be fixed later once we resolve the tensor dimension issue
     for idx in sample_indices:
         try:
             sample = dataset[idx]
 
-            # Just decode the prompt for now
+            # Get input tensors
+            input_ids = sample["input_ids"].unsqueeze(0).to(device)
+            images = sample["images"]
+
+            # Handle images properly - convert list to tensor if needed
+            if isinstance(images, list):
+                if images:
+                    # Stack images for batch processing
+                    images = torch.stack(images).to(device)
+                    # For single image, squeeze out the extra dimension
+                    if images.shape[0] == 1:
+                        images = images.squeeze(0)
+                    # Add batch dimension
+                    images = images.unsqueeze(0)
+                else:
+                    # No images case
+                    images = torch.empty(
+                        0,
+                        model.cfg.vit_channels,
+                        model.cfg.vit_img_size,
+                        model.cfg.vit_img_size,
+                        device=device,
+                    )
+            elif isinstance(images, torch.Tensor):
+                # Single image - add batch dimension if needed
+                if images.dim() == 3:
+                    images = images.unsqueeze(0).to(device)
+                elif images.dim() == 4:
+                    # If it's [1, C, H, W], keep as is
+                    images = images.to(device)
+                elif images.dim() == 5:
+                    # If it's [1, 1, C, H, W], squeeze out the extra dim
+                    images = images.squeeze(1).to(device)
+
+            # Decode the prompt
             prompt_tokens = sample["input_ids"].tolist()
             prompt_text = tokenizer.decode(prompt_tokens, skip_special_tokens=True)
+
+            # Generate text
+            try:
+                with torch.no_grad():
+                    generated_ids = model.generate(
+                        input_ids,
+                        images,
+                        max_new_tokens=30,
+                        temperature=0.7,
+                        top_p=0.9,
+                    )
+
+                # Decode generated text
+                generated_text = tokenizer.decode(
+                    generated_ids[0].tolist(), skip_special_tokens=True
+                )
+
+                # Remove the prompt from generated text if present
+                if generated_text.startswith(prompt_text):
+                    generated_text = generated_text[len(prompt_text) :].strip()
+
+            except Exception as gen_error:
+                print(f"  ! Generation error for sample {idx}: {gen_error}")
+                generated_text = f"[Generation failed: {str(gen_error)[:100]}]"
 
             sample_outputs.append(
                 {
@@ -36,12 +92,13 @@ def generate_sample_outputs(model, dataset, tokenizer, checkpoint_path, device):
                     "prompt": prompt_text[:200] + "..."
                     if len(prompt_text) > 200
                     else prompt_text,
-                    "generated_text": "[Generation temporarily disabled due to tensor format issue]",
-                    "note": "This demonstrates the functionality - generation will be fixed in future update",
+                    "generated_text": generated_text[:200] + "..."
+                    if len(generated_text) > 200
+                    else generated_text,
                 }
             )
 
-            print(f"  ✓ Processed sample {len(sample_outputs)}/5 (generation disabled)")
+            print(f"  ✓ Generated output {len(sample_outputs)}/5")
 
         except Exception as e:
             print(f"  ✗ Error processing sample {idx}: {e}")
@@ -144,10 +201,10 @@ def main():
     # Load ALL dataset configs just like train.py
     combined_train_data = []
     dataset_names_to_load = train_cfg.train_dataset_name
-    
+
     if "all" in dataset_names_to_load:
         dataset_names_to_load = get_dataset_config_names(train_cfg.train_dataset_path)
-    
+
     for dataset_name in dataset_names_to_load:
         try:
             train_ds = load_dataset(
@@ -160,21 +217,21 @@ def main():
         except Exception as e:
             print(f"Warning: Failed to load '{dataset_name}': {e}")
             continue
-    
+
     if not combined_train_data:
         raise ValueError("No valid datasets were loaded!")
-    
+
     # Concatenate and shuffle with SAME seed as training
     train_ds = concatenate_datasets(combined_train_data)
     train_ds = train_ds.shuffle(seed=0)
-    
+
     # Calculate split EXACTLY as train.py does
     total_samples = len(train_ds)
     val_size = int(total_samples * train_cfg.val_ratio)
     train_size = total_samples - val_size
-    
+
     print(f"Dataset: {train_size} train, {val_size} validation samples")
-    
+
     # Create validation dataset from the SAME split as training
     val_dataset = VQADataset(
         train_ds.select(range(train_size, total_samples)),
@@ -197,17 +254,22 @@ def main():
     # Run validation
     total_batches = len(val_loader)
     batches_to_process = args.limit_batches if args.limit_batches else total_batches
-    
+
     print(f"\nRunning validation on {batches_to_process}/{total_batches} batches...")
-    print(f"This will process {batches_to_process * args.batch_size}/{len(val_dataset)} samples")
-    
+    print(
+        f"This will process {batches_to_process * args.batch_size}/{len(val_dataset)} samples"
+    )
+
     import time
+
     start_time = time.time()
     total_val_loss = 0
     num_batches = 0
 
     with torch.no_grad():
-        for batch_idx, batch in enumerate(tqdm(val_loader, desc="Validation", total=batches_to_process)):
+        for batch_idx, batch in enumerate(
+            tqdm(val_loader, desc="Validation", total=batches_to_process)
+        ):
             if args.limit_batches and batch_idx >= args.limit_batches:
                 break
 
@@ -232,13 +294,15 @@ def main():
                 continue
 
     elapsed_time = time.time() - start_time
-    
+
     if num_batches > 0:
         avg_val_loss = total_val_loss / num_batches
         print(f"\n✓ Validation completed in {elapsed_time:.1f} seconds")
         print(f"  Average validation loss: {avg_val_loss:.4f}")
         print(f"  Batches processed: {num_batches}/{total_batches}")
-        print(f"  Samples processed: {num_batches * args.batch_size}/{len(val_dataset)}")
+        print(
+            f"  Samples processed: {num_batches * args.batch_size}/{len(val_dataset)}"
+        )
 
         # Save results
         output_path = checkpoint_path / "validation_results.json"
@@ -257,7 +321,9 @@ def main():
 
         # Generate and save sample outputs
         print("\nGenerating sample text outputs...")
-        generate_sample_outputs(model, val_dataset, tokenizer, str(checkpoint_path), device)
+        generate_sample_outputs(
+            model, val_dataset, tokenizer, str(checkpoint_path), device
+        )
 
         # Print summary
         print("\nValidation Summary:")
