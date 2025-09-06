@@ -4,7 +4,6 @@ Run validation on a saved checkpoint using the training validation dataset.
 """
 
 import json
-import os
 import random
 from pathlib import Path
 
@@ -49,7 +48,7 @@ def generate_sample_outputs(model, dataset, tokenizer, checkpoint_path, device):
             continue
 
     # Save sample outputs
-    output_path = os.path.join(checkpoint_path, "sample_outputs.json")
+    output_path = Path(checkpoint_path) / "sample_outputs.json"
     with open(output_path, "w") as f:
         json.dump(sample_outputs, f, indent=2, ensure_ascii=False)
 
@@ -87,7 +86,7 @@ def get_parser():
 def main():
     parser = get_parser()
     args = parser.parse_args()
-    checkpoint_path = args.checkpoint_path
+    checkpoint_path = Path(args.checkpoint_path)
 
     print(f"Loading model from {checkpoint_path}...")
 
@@ -98,7 +97,7 @@ def main():
     from models.vision_language_model import VisionLanguageModel
 
     # Load model
-    model = VisionLanguageModel.from_pretrained(checkpoint_path)
+    model = VisionLanguageModel.from_pretrained(str(checkpoint_path))
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model.to(device)
     model.eval()
@@ -111,13 +110,13 @@ def main():
     train_cfg = TrainConfig()
 
     # Load tokenizer and processor
-    tokenizer_path = os.path.join(checkpoint_path, "tokenizer")
-    processor_path = os.path.join(checkpoint_path, "processor")
+    tokenizer_path = checkpoint_path / "tokenizer"
+    processor_path = checkpoint_path / "processor"
 
-    if os.path.exists(tokenizer_path):
+    if tokenizer_path.exists():
         from transformers import AutoTokenizer
 
-        tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+        tokenizer = AutoTokenizer.from_pretrained(str(tokenizer_path))
         print("✓ Tokenizer loaded from checkpoint")
     else:
         tokenizer = get_tokenizer(
@@ -125,10 +124,10 @@ def main():
         )
         print(f"✓ Tokenizer loaded from HuggingFace: {cfg.lm_tokenizer}")
 
-    if os.path.exists(processor_path):
+    if processor_path.exists():
         from transformers import AutoProcessor
 
-        image_processor = AutoProcessor.from_pretrained(processor_path)
+        image_processor = AutoProcessor.from_pretrained(str(processor_path))
         print("✓ Image processor loaded from checkpoint")
     else:
         # Use single image mode for DINOv3 (resize to 224x224 instead of splitting)
@@ -242,9 +241,9 @@ def main():
         print(f"  Samples processed: {num_batches * args.batch_size}/{len(val_dataset)}")
 
         # Save results
-        output_path = os.path.join(checkpoint_path, "validation_results.json")
+        output_path = checkpoint_path / "validation_results.json"
         results = {
-            "checkpoint_path": checkpoint_path,
+            "checkpoint_path": str(checkpoint_path),
             "num_batches": num_batches,
             "num_samples": num_batches * args.batch_size,
             "average_loss": avg_val_loss,
@@ -258,11 +257,11 @@ def main():
 
         # Generate and save sample outputs
         print("\nGenerating sample text outputs...")
-        generate_sample_outputs(model, val_dataset, tokenizer, checkpoint_path, device)
+        generate_sample_outputs(model, val_dataset, tokenizer, str(checkpoint_path), device)
 
         # Print summary
         print("\nValidation Summary:")
-        print(f"  Checkpoint: {Path(checkpoint_path).name}")
+        print(f"  Checkpoint: {checkpoint_path.name}")
         print(f"  Batches processed: {num_batches}")
         print(f"  Average loss: {avg_val_loss:.4f}")
         print("  Results saved to: validation_results.json")
