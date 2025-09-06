@@ -68,7 +68,7 @@ def main():
     model.eval()
 
     tokenizer = get_tokenizer(model.cfg.lm_tokenizer, model.cfg.vlm_extra_tokens)
-    
+
     # Use single image mode for DINOv3 (resize to 224x224 instead of splitting)
     single_image_mode = model.cfg.vit_architecture == "dinov3"
     image_processor = get_image_processor(
@@ -92,13 +92,13 @@ def main():
         [messages], tokenize=True, add_generation_prompt=True
     )
     tokens = torch.tensor(encoded_prompt).to(device)
-    
+
     # Handle image tensor dimensions
     if isinstance(processed_image, list):
         img_t = torch.stack(processed_image).to(device)
     else:
         img_t = processed_image.to(device)
-    
+
     # Add batch dimension if needed
     if img_t.dim() == 3:
         img_t = img_t.unsqueeze(0)

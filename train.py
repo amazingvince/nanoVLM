@@ -113,7 +113,7 @@ def get_run_name(train_cfg, vlm_cfg):
 
 def save_tokenizer_and_processor(tokenizer, image_processor, save_directory, vlm_cfg):
     """Save tokenizer to checkpoint directory.
-    
+
     Note: The image processor is recreated from model config at load time,
     following the original nanoVLM design pattern.
     """
@@ -123,7 +123,7 @@ def save_tokenizer_and_processor(tokenizer, image_processor, save_directory, vlm
     tokenizer_dir = save_directory / "tokenizer"
     tokenizer_dir.mkdir(parents=True, exist_ok=True)
     tokenizer.save_pretrained(str(tokenizer_dir))
-    
+
     # The image processor is a torchvision.transforms.Compose object
     # that gets recreated from the model's config at load time (see generate.py)
 
