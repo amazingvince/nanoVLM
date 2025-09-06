@@ -101,7 +101,7 @@ class VLMConfig:
     )
     vlm_load_backbone_weights: bool = True
     vlm_checkpoint_path: str = "checkpoints"
-    hf_repo_name: str = "nanoVLM"
+    hf_repo_name: str = None  # Set to repo name to push to HuggingFace Hub
 
     def __post_init__(self):
         # Round vocab size to nearest multiple of 128 for GPU efficiency
