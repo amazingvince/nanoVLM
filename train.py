@@ -768,7 +768,7 @@ def main():
     # Load default configs to show in help
     default_train_cfg = config.TrainConfig()
     default_vlm_cfg = config.VLMConfig()
-    
+
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         epilog="If no arguments are passed, uses original 460M siglip+smolLM2 configuration",
@@ -806,16 +806,16 @@ def main():
 
     # Training arguments
     parser.add_argument(
-        "--lr_mp", 
-        type=float, 
+        "--lr_mp",
+        type=float,
         default=default_train_cfg.lr_mp,
-        help="Learning rate for the mapping network"
+        help="Learning rate for the mapping network",
     )
     parser.add_argument(
-        "--lr_backbones", 
-        type=float, 
+        "--lr_backbones",
+        type=float,
         default=default_train_cfg.lr_backbones,
-        help="Learning rate for the backbones"
+        help="Learning rate for the backbones",
     )
     parser.add_argument(
         "--vlm_checkpoint_path",
@@ -824,14 +824,12 @@ def main():
         help="Path to the VLM checkpoint for loading or saving",
     )
     parser.add_argument(
-        "--compile", 
-        action="store_true",
-        help="Use torch.compile to optimize the model"
+        "--compile", action="store_true", help="Use torch.compile to optimize the model"
     )
     parser.add_argument(
-        "--log_wandb", 
+        "--log_wandb",
         action="store_true",
-        help="Force enable wandb logging (use --no_log_wandb to disable)"
+        help="Force enable wandb logging (use --no_log_wandb to disable)",
     )
     parser.add_argument(
         "--resume_from_vlm_checkpoint",
@@ -853,16 +851,16 @@ def main():
         help="Number of DataLoader worker threads, 0 disables multiprocessing",
     )
     parser.add_argument(
-        "--max_threads", 
-        type=int, 
+        "--max_threads",
+        type=int,
         default=default_train_cfg.max_threads,
-        help="Maximum number of threads for torch operations"
+        help="Maximum number of threads for torch operations",
     )
     parser.add_argument(
-        "--console_log_interval", 
-        type=int, 
+        "--console_log_interval",
+        type=int,
         default=default_train_cfg.console_log_interval,
-        help="Print loss to console every N steps"
+        help="Print loss to console every N steps",
     )
     parser.add_argument(
         "--save_checkpoint_steps",
@@ -972,22 +970,22 @@ def main():
     train_cfg.eval_interval = args.eval_interval
     train_cfg.save_checkpoint_steps = args.save_checkpoint_steps
     train_cfg.wandb_entity = args.wandb_entity
-    
+
     # Apply VLM configuration arguments
     vlm_cfg.vlm_checkpoint_path = args.vlm_checkpoint_path
-    
+
     # Handle boolean flags
     train_cfg.compile = args.compile
     if args.no_log_wandb:
         train_cfg.log_wandb = False
     elif args.log_wandb:
         train_cfg.log_wandb = True
-    
+
     train_cfg.freeze_vision_encoder = args.freeze_vision_encoder
     if args.freeze_vision_encoder and args.use_preset == "dinov3_gemma":
         if is_master():
             print("Using frozen vision encoder with DINOv3 (recommended by paper)")
-    
+
     train_cfg.resume_from_vlm_checkpoint = args.resume_from_vlm_checkpoint
     if args.resume_from_vlm_checkpoint:
         # When resuming a full VLM, we don't need to load individual backbone weights from original sources
