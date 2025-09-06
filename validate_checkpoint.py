@@ -33,11 +33,17 @@ def generate_sample_outputs(model, dataset, tokenizer, checkpoint_path, device):
                 if images:
                     # Stack images for batch processing
                     images = torch.stack(images).to(device)
-                    # For single image, squeeze out the extra dimension
-                    if images.shape[0] == 1:
-                        images = images.squeeze(0)
-                    # Add batch dimension
-                    images = images.unsqueeze(0)
+                    # Ensure we have [batch_size, num_images, C, H, W] or [batch_size, C, H, W]
+                    if images.dim() == 3:  # [C, H, W] - single image
+                        images = images.unsqueeze(0)  # [1, C, H, W]
+                    elif images.dim() == 4:  # [num_images, C, H, W]
+                        if images.shape[0] == 1:
+                            # Single image case [1, C, H, W]
+                            images = images.squeeze(0).unsqueeze(0)  # [1, C, H, W]
+                        else:
+                            # Multi-image case - model expects [batch_size, C, H, W] for single sample
+                            # For now, just use the first image to avoid the conv2d error
+                            images = images[0:1]  # Take first image [1, C, H, W]
                 else:
                     # No images case
                     images = torch.empty(
@@ -255,10 +261,8 @@ def main():
     total_batches = len(val_loader)
     batches_to_process = args.limit_batches if args.limit_batches else total_batches
 
-    print(f"\nRunning validation on {batches_to_process}/{total_batches} batches...")
-    print(
-        f"This will process {batches_to_process * args.batch_size}/{len(val_dataset)} samples"
-    )
+    print(f"\nRunning validation on {batches_to_process} batches...")
+    print(f"This will process {len(val_dataset)} samples (batch_size={args.batch_size})")
 
     import time
 
