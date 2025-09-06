@@ -120,10 +120,8 @@ def save_tokenizer_and_processor(tokenizer, image_processor, save_directory):
     tokenizer_dir.mkdir(parents=True, exist_ok=True)
     tokenizer.save_pretrained(str(tokenizer_dir))
 
-    # Save image processor
-    processor_dir = save_directory / "processor"
-    processor_dir.mkdir(parents=True, exist_ok=True)
-    image_processor.save_pretrained(str(processor_dir))
+    # Note: image_processor is a torchvision.transforms.Compose object
+    # which doesn't need to be saved - it's recreated from config
 
 
 def get_dataloaders(train_cfg, vlm_cfg):
