@@ -189,9 +189,11 @@ def benchmark_vlm(
     return daresult
 
 
-if __name__ == "__main__":
+def get_parser():
+    """Create and return the argument parser."""
     parser = argparse.ArgumentParser(
-        description="Benchmark VLM inference speed with JSON logging and analysis."
+        description="Benchmark VLM inference speed with JSON logging and analysis.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
     parser.add_argument(
@@ -257,6 +259,11 @@ if __name__ == "__main__":
         help="Number of warmup runs before benchmarking.",
     )
 
+    return parser
+
+
+if __name__ == "__main__":
+    parser = get_parser()
     args = parser.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")

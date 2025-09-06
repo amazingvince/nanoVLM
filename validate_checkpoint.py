@@ -56,10 +56,14 @@ def generate_sample_outputs(model, dataset, tokenizer, checkpoint_path, device):
     print(f"✓ Generated {len(sample_outputs)} sample outputs saved to {output_path}")
 
 
-def main():
+def get_parser():
+    """Create and return the argument parser."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Run validation on a saved checkpoint")
+    parser = argparse.ArgumentParser(
+        description="Run validation on a saved checkpoint",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     parser.add_argument(
         "checkpoint_path",
         type=str,
@@ -69,27 +73,31 @@ def main():
         "--num_samples",
         type=int,
         default=100,
-        help="Number of validation samples to use (default: 100)",
+        help="Number of validation samples to use",
     )
     parser.add_argument(
         "--batch_size",
         type=int,
         default=4,
-        help="Batch size for validation (default: 4)",
+        help="Batch size for validation",
     )
     parser.add_argument(
         "--num_batches",
         type=int,
         default=10,
-        help="Maximum number of batches to process (default: 10)",
+        help="Maximum number of batches to process",
     )
     parser.add_argument(
         "--dataset_subset",
         type=str,
         default="vqav2",
-        help="Dataset subset to use for validation (default: vqav2)",
+        help="Dataset subset to use for validation",
     )
+    return parser
 
+
+def main():
+    parser = get_parser()
     args = parser.parse_args()
     checkpoint_path = args.checkpoint_path
 

@@ -11,9 +11,11 @@ if torch.cuda.is_available():
     torch.cuda.manual_seed_all(0)
 
 
-def parse_args():
+def get_parser():
+    """Create and return the argument parser."""
     parser = argparse.ArgumentParser(
-        description="Generate text from an image with nanoVLM"
+        description="Generate text from an image with nanoVLM",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
         "--checkpoint",
@@ -45,11 +47,12 @@ def parse_args():
         default=20,
         help="Maximum number of tokens per output",
     )
-    return parser.parse_args()
+    return parser
 
 
 def main():
-    args = parse_args()
+    parser = get_parser()
+    args = parser.parse_args()
 
     if torch.cuda.is_available():
         device = torch.device("cuda")

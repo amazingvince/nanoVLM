@@ -220,9 +220,11 @@ def measure_vram(args, vlm_cfg, train_cfg_defaults):
         print(f"Batch Size {bs}: {vram_usage}")
 
 
-def main():
+def get_parser():
+    """Create and return the argument parser."""
     parser = argparse.ArgumentParser(
-        description="Measure VRAM usage for a VisionLanguageModel at different batch sizes."
+        description="Measure VRAM usage for a VisionLanguageModel at different batch sizes.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
     # Model and Config args
@@ -256,6 +258,11 @@ def main():
         help="Number of forward/backward passes per batch size for VRAM measurement.",
     )
 
+    return parser
+
+
+def main():
+    parser = get_parser()
     args = parser.parse_args()
 
     vlm_cfg = config.VLMConfig(
