@@ -765,6 +765,10 @@ def train(train_cfg, vlm_cfg):
 
 
 def main():
+    # Load default configs to show in help
+    default_train_cfg = config.TrainConfig()
+    default_vlm_cfg = config.VLMConfig()
+    
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         epilog="If no arguments are passed, uses original 460M siglip+smolLM2 configuration",
@@ -802,25 +806,37 @@ def main():
 
     # Training arguments
     parser.add_argument(
-        "--lr_mp", type=float, help="Learning rate for the mapping network"
+        "--lr_mp", 
+        type=float, 
+        default=default_train_cfg.lr_mp,
+        help="Learning rate for the mapping network"
     )
     parser.add_argument(
-        "--lr_backbones", type=float, help="Learning rate for the backbones"
+        "--lr_backbones", 
+        type=float, 
+        default=default_train_cfg.lr_backbones,
+        help="Learning rate for the backbones"
     )
     parser.add_argument(
         "--vlm_checkpoint_path",
         type=str,
+        default=default_vlm_cfg.vlm_checkpoint_path,
         help="Path to the VLM checkpoint for loading or saving",
     )
     parser.add_argument(
-        "--compile", type=bool, help="Use torch.compile to optimize the model"
+        "--compile", 
+        action="store_true",
+        help="Use torch.compile to optimize the model"
     )
-    parser.add_argument("--log_wandb", type=bool, help="Log to wandb")
+    parser.add_argument(
+        "--log_wandb", 
+        action="store_true",
+        help="Force enable wandb logging (use --no_log_wandb to disable)"
+    )
     parser.add_argument(
         "--resume_from_vlm_checkpoint",
-        type=bool,
-        default=False,
-        help="Resume training from VLM checkpoint specified by vlm_checkpoint_path (or default if not provided)",
+        action="store_true",
+        help="Resume training from VLM checkpoint specified by vlm_checkpoint_path",
     )
     parser.add_argument(
         "--freeze_vision_encoder",
@@ -833,25 +849,62 @@ def main():
     parser.add_argument(
         "--num_workers",
         type=int,
-        help="Number of DataLoader worker threads (0 disables multiprocessing)",
+        default=default_train_cfg.num_workers,
+        help="Number of DataLoader worker threads, 0 disables multiprocessing",
     )
     parser.add_argument(
-        "--max_threads", type=int, help="Maximum number of threads for torch operations"
+        "--max_threads", 
+        type=int, 
+        default=default_train_cfg.max_threads,
+        help="Maximum number of threads for torch operations"
     )
     parser.add_argument(
-        "--console_log_interval", type=int, help="Print loss to console every N steps"
+        "--console_log_interval", 
+        type=int, 
+        default=default_train_cfg.console_log_interval,
+        help="Print loss to console every N steps"
     )
     parser.add_argument(
         "--save_checkpoint_steps",
         type=int,
-        default=None,
-        help="Save checkpoint every N steps regardless of validation loss (in addition to best model saving)",
+        default=default_train_cfg.save_checkpoint_steps,
+        help="Save checkpoint every N steps regardless of validation loss",
     )
     parser.add_argument(
         "--eval_interval",
         type=int,
-        default=None,
+        default=default_train_cfg.eval_interval,
         help="Evaluate and potentially save best model every N steps",
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=default_train_cfg.batch_size,
+        help="Per-device batch size",
+    )
+    parser.add_argument(
+        "--gradient_accumulation_steps",
+        type=int,
+        default=default_train_cfg.gradient_accumulation_steps,
+        help="Gradient accumulation steps",
+    )
+    parser.add_argument(
+        "--max_training_steps",
+        type=int,
+        default=default_train_cfg.max_training_steps,
+        help="Maximum number of training steps",
+    )
+    parser.add_argument(
+        "--max_grad_norm",
+        type=float,
+        default=default_train_cfg.max_grad_norm,
+        help="Maximum gradient norm for clipping",
+    )
+    parser.add_argument(
+        "--wandb_entity",
+        type=str,
+        default=default_train_cfg.wandb_entity,
+        help="Wandb entity name (leave empty for your default entity)",
     )
 
     args = parser.parse_args()
@@ -906,35 +959,37 @@ def main():
 
     train_cfg = config.TrainConfig()
 
-    if args.lr_mp is not None:
-        train_cfg.lr_mp = args.lr_mp
-    if args.lr_backbones is not None:
-        train_cfg.lr_backbones = args.lr_backbones
-    if args.vlm_checkpoint_path is not None:
-        vlm_cfg.vlm_checkpoint_path = args.vlm_checkpoint_path
-    if args.compile is not None:
-        train_cfg.compile = args.compile
-    if args.no_log_wandb is True:
+    # Apply training configuration arguments
+    train_cfg.lr_mp = args.lr_mp
+    train_cfg.lr_backbones = args.lr_backbones
+    train_cfg.batch_size = args.batch_size
+    train_cfg.gradient_accumulation_steps = args.gradient_accumulation_steps
+    train_cfg.max_training_steps = args.max_training_steps
+    train_cfg.max_grad_norm = args.max_grad_norm
+    train_cfg.num_workers = args.num_workers
+    train_cfg.max_threads = args.max_threads
+    train_cfg.console_log_interval = args.console_log_interval
+    train_cfg.eval_interval = args.eval_interval
+    train_cfg.save_checkpoint_steps = args.save_checkpoint_steps
+    train_cfg.wandb_entity = args.wandb_entity
+    
+    # Apply VLM configuration arguments
+    vlm_cfg.vlm_checkpoint_path = args.vlm_checkpoint_path
+    
+    # Handle boolean flags
+    train_cfg.compile = args.compile
+    if args.no_log_wandb:
         train_cfg.log_wandb = False
-    if args.freeze_vision_encoder:
-        train_cfg.freeze_vision_encoder = True
-        # When using DINOv3 preset with frozen encoder, default to True
-        if args.use_preset == "dinov3_gemma":
-            if is_master():
-                print("Using frozen vision encoder with DINOv3 (recommended by paper)")
-    if args.num_workers is not None:
-        train_cfg.num_workers = args.num_workers
-    if args.max_threads is not None:
-        train_cfg.max_threads = args.max_threads
-    if args.console_log_interval is not None:
-        train_cfg.console_log_interval = args.console_log_interval
-    if args.eval_interval is not None:
-        train_cfg.eval_interval = args.eval_interval
-    if args.save_checkpoint_steps is not None:
-        train_cfg.save_checkpoint_steps = args.save_checkpoint_steps
-
-    if args.resume_from_vlm_checkpoint and args.vlm_checkpoint_path is not None:
-        train_cfg.resume_from_vlm_checkpoint = True
+    elif args.log_wandb:
+        train_cfg.log_wandb = True
+    
+    train_cfg.freeze_vision_encoder = args.freeze_vision_encoder
+    if args.freeze_vision_encoder and args.use_preset == "dinov3_gemma":
+        if is_master():
+            print("Using frozen vision encoder with DINOv3 (recommended by paper)")
+    
+    train_cfg.resume_from_vlm_checkpoint = args.resume_from_vlm_checkpoint
+    if args.resume_from_vlm_checkpoint:
         # When resuming a full VLM, we don't need to load individual backbone weights from original sources
         vlm_cfg.vlm_load_backbone_weights = False
 
