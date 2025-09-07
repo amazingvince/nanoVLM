@@ -149,6 +149,9 @@ python train.py --vision_encoder dinov2 --language_model gemma
 
 ### Training Options
 
+> [!TIP]
+> For optimal performance, use `--freeze_vision_encoder` when training with DINOv3, as recommended in the paper.
+
 #### Basic Configuration
 ```bash
 # Adjust learning rates
@@ -165,6 +168,10 @@ python train.py --console_log_interval 10  # Log every 10 steps
 ```
 
 #### Checkpointing and Validation
+
+> [!IMPORTANT]
+> `validation_steps` and `save_checkpoint_steps` are independent. Validation computes loss only, while checkpoint saving writes the model to disk.
+
 ```bash
 # Save checkpoints at regular intervals
 python train.py --save_checkpoint_steps 500  # Save every 500 steps
@@ -292,8 +299,13 @@ huggingface-cli login
 # Evaluate a trained model on multiple benchmarks
 python evaluation.py --model lusxvr/nanoVLM-450M --tasks mmstar,mme
 
-# Enable lmms-eval during training (disabled by default for speed)
+> [!NOTE]
+> lmms-eval is disabled by default during training as it's computationally expensive. Enable it explicitly with `--use_lmms_eval` when you want benchmark scores.
+
+```bash
+# Enable lmms-eval during training
 python train.py --use_lmms_eval --lmms_eval_tasks "mmstar,mme" --lmms_eval_limit 1000
+```
 
 # If you want to use it programmatically:
 from evaluation import cli_evaluate
@@ -306,8 +318,6 @@ args = argparse.Namespace(
 )
 results = cli_evaluate(args)
 ```
-
-**Note**: lmms-eval is disabled by default during training as it's computationally expensive. Enable it explicitly with `--use_lmms_eval` when you want benchmark scores.
 
 ## Hub integration
 
@@ -385,9 +395,8 @@ Batch Size 512: OOM (Peak before OOM: 80247.67 MB)
 
 Note that the VRAM measurement was performed on a small setup using 'SmolLM2-135M' with a maximum input sequence length of 128 tokens. This may differ from the current default configuration in the project.
 
-**Key Takeaways:**
-- You'll need at least ~4.5 GB of VRAM to train the default model even with a batch size of 1.
-- With approximately 8 GB of VRAM, you should be able to train with a batch size of up to 16.
+> [!WARNING]
+> You'll need at least ~4.5 GB of VRAM to train the default model even with a batch size of 1. With 8 GB of VRAM, you can train with batch sizes up to 16.
 
 **Measure for Your Setup:**
 
@@ -415,7 +424,10 @@ This script will output the peak VRAM allocated for each batch size tested, help
 
 We welcome contributions to nanoVLM! However, to maintain the repository's focus on simplicity and pure PyTorch, we have a few guidelines:
 
-*   **Pure PyTorch:** We aim to keep nanoVLM as a lightweight implementation in pure PyTorch. Contributions that introduce dependencies like `transformers.Trainer`, `accelerate`, or `deepspeed` will not be accepted.
+> [!IMPORTANT]
+> nanoVLM is intentionally kept simple and in pure PyTorch. Contributions that introduce dependencies like `transformers.Trainer`, `accelerate`, or `deepspeed` will not be accepted.
+
+*   **Pure PyTorch:** We aim to keep nanoVLM as a lightweight implementation in pure PyTorch.
 *   **New Features:** If you have an idea for a new feature, please open an issue first to discuss the scope and implementation details. This helps ensure that your contribution aligns with the project's goals.
 *   **Bug Fixes:** Feel free to submit pull requests for bug fixes.
 
