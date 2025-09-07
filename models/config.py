@@ -121,6 +121,9 @@ class TrainConfig:
     max_grad_norm: float = 1.0
     eval_in_epochs: bool = True
     eval_interval: int = 500
+    validation_steps: int = (
+        None  # Run validation every N steps (overrides eval_interval if set)
+    )
     stats_log_interval: int = gradient_accumulation_steps * 25
     save_checkpoint_steps: int = (
         None  # Save checkpoint every N steps (in addition to best model)

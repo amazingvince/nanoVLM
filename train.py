@@ -501,9 +501,15 @@ def train(train_cfg, vlm_cfg):
             accumulated_stats["post_process_time"].append(post_process_time)
             accumulated_stats["images_per_sample"].extend(images_per_sample)
 
+            # Use validation_steps if set, otherwise fall back to eval_interval
+            validation_interval = (
+                train_cfg.validation_steps
+                if train_cfg.validation_steps is not None
+                else train_cfg.eval_interval
+            )
             if (
                 train_cfg.eval_in_epochs
-                and global_step % train_cfg.eval_interval == 0
+                and global_step % validation_interval == 0
                 and is_update_step
                 and global_step > 0
             ):
@@ -908,6 +914,12 @@ def main():
         help="Save checkpoint every N steps regardless of validation loss",
     )
     parser.add_argument(
+        "--validation_steps",
+        type=int,
+        default=default_train_cfg.validation_steps,
+        help="Run validation every N steps (overrides eval_interval if set)",
+    )
+    parser.add_argument(
         "--eval_interval",
         type=int,
         default=default_train_cfg.eval_interval,
@@ -1008,6 +1020,7 @@ def main():
     train_cfg.max_threads = args.max_threads
     train_cfg.console_log_interval = args.console_log_interval
     train_cfg.eval_interval = args.eval_interval
+    train_cfg.validation_steps = args.validation_steps
     train_cfg.save_checkpoint_steps = args.save_checkpoint_steps
     train_cfg.wandb_entity = args.wandb_entity
 
