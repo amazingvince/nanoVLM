@@ -141,7 +141,9 @@ class TrainConfig:
     wandb_entity: str = None  # Leave as None to use your default wandb entity
     log_wandb: bool = True
     wandb_log_steps: int = 5  # Log to wandb every N steps (default 5 for efficiency)
-    use_lmms_eval: bool = False  # Use lmms-eval for evaluation (expensive, disabled by default)
+    use_lmms_eval: bool = (
+        False  # Use lmms-eval for evaluation (expensive, disabled by default)
+    )
     lmms_eval_tasks: str = "mmstar,mmmu,ocrbench,textvqa"  # Pass additional task as one string, seperated by commas without spaces (e.g. 'mmstar,mmmu,ocrbench')
     lmms_eval_limit: int = 2000
     lmms_eval_batch_size: int = 128
@@ -167,8 +169,7 @@ def get_original_small_config():
         vit_n_heads=12,
         vit_n_blocks=12,
         vit_cls_flag=False,  # SigLIP doesn't use CLS token
-        
-        # SmolLM2-135M settings  
+        # SmolLM2-135M settings
         lm_architecture="llama",
         lm_model_type="HuggingFaceTB/SmolLM2-135M",  # Original smaller SmolLM
         lm_tokenizer="HuggingFaceTB/SmolLM2-135M",
@@ -181,12 +182,10 @@ def get_original_small_config():
         lm_max_position_embeddings=8192,
         lm_rms_eps=1e-5,
         lm_re_base=100000,
-        
         # Modality projector - for 224x224 images
         mp_pixel_shuffle_factor=2,  # Since 224/16 = 14, need factor of 2
         mp_image_token_length=49,  # (14/2)^2 = 49
         mp_handle_special_tokens=False,
-        
         # Override max_img_size to match input
         max_img_size=224,
     )
