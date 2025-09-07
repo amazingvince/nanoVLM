@@ -33,7 +33,10 @@ nanoVLM now supports flexible combinations of vision encoders and language model
   - Position embeddings: Learned
   
 - **DINOv3**: Meta's latest self-supervised vision transformer
-  - Model: `facebook/dinov3-vits16plus-pretrain-lvd1689m`
+  - Models: 
+    - `facebook/dinov3-vits16plus-pretrain-lvd1689m` (default)
+    - `facebook/dinov3-vitb16-pretrain-lvd1689m` 
+    - `facebook/dinov3-vitl14-pretrain-lvd1689m`
   - Input: 224×224 images → 196 patches + 4 registers + 1 CLS → 49 tokens after projection
   - Position embeddings: RoPE with patch center coordinates
   - Features: LayerScale, SwiGLU FFN, register tokens
@@ -121,9 +124,13 @@ The repository now supports multiple vision encoder and language model combinati
 #### DINOv3 + Gemma-3-270M
 ```bash
 python train.py --use_preset dinov3_gemma
+
+# Or with specific DINOv3 model size
+python train.py --vision_encoder dinov3 --dinov3_model vitb16 --language_model gemma
 ```
 This configuration uses:
-- **Vision**: DINOv3 (facebook/dinov3-vits16plus-pretrain-lvd1689m) with RoPE position embeddings
+- **Vision**: DINOv3 with RoPE position embeddings
+  - Available sizes: `vits16plus` (default), `vitb16`, `vitl14`
 - **Language**: Gemma-3-270M-IT (google/gemma-3-270m-it)
 - **Image size**: 224x224 (processed as single image with 16x16 patches)
 
@@ -141,18 +148,59 @@ python train.py --vision_encoder dinov2 --language_model gemma
 ```
 
 ### Training Options
+
+#### Basic Configuration
 ```bash
 # Adjust learning rates
 python train.py --lr_mp 0.00512 --lr_backbones 5e-05
 
+# Set batch size and gradient accumulation
+python train.py --batch_size 2 --gradient_accumulation_steps 32
+
 # Enable/disable compilation (disabled by default for compatibility)
-python train.py --compile True
+python train.py --compile
 
 # Show training progress in console
 python train.py --console_log_interval 10  # Log every 10 steps
+```
+
+#### Checkpointing and Validation
+```bash
+# Save checkpoints at regular intervals
+python train.py --save_checkpoint_steps 500  # Save every 500 steps
+
+# Run validation at custom intervals (separate from checkpoint saving)
+python train.py --validation_steps 100  # Validate every 100 steps
+
+# Control evaluation interval (for best model tracking)
+python train.py --eval_interval 500  # Default: 500 steps
 
 # Resume from checkpoint
-python train.py --resume_from_vlm_checkpoint path/to/checkpoint.pth
+python train.py --resume_from_vlm_checkpoint --vlm_checkpoint_path checkpoints/run_name
+```
+
+#### Advanced Training Strategies
+```bash
+# Freeze vision encoder (Locked-image Text tuning, recommended for DINOv3)
+python train.py --freeze_vision_encoder
+
+# DINOv3 with frozen encoder (as per paper recommendations)
+python train.py --use_preset dinov3_gemma --freeze_vision_encoder
+
+# Disable Weights & Biases logging
+python train.py --no_log_wandb
+
+# Disable HuggingFace Hub push (no automatic upload after training)
+python train.py --hf_repo_name None
+```
+
+#### Performance Tuning
+```bash
+# Control number of DataLoader workers
+python train.py --num_workers 4  # Default: 2
+
+# Limit maximum threads for torch operations
+python train.py --max_threads 8  # Default: 4
 ```
 
 ## Generate
@@ -164,6 +212,17 @@ python generate.py
 or, to use your own trained model, you can simply run:
 ```bash
 python generate.py --checkpoint /your/path/to/trained_models
+```
+
+### Validating Checkpoints
+
+You can validate and test generation from saved checkpoints:
+```bash
+# Validate a checkpoint and generate sample outputs
+python validate_checkpoint.py --checkpoint_dir checkpoints/your_run_name
+
+# Test different architectures
+python validate_checkpoint.py --checkpoint_dir checkpoints/dinov3_run --vision_encoder dinov3
 ```
 
 If we feed the example image in `assets/image.png` with a question into the model, we get the following output. Even after only short training, the model can recognize the cat in the picture. 
@@ -179,9 +238,48 @@ Generation 4:  This is a cat sitting on the ground. I think this is a cat sittin
 Generation 5:  This is a cat sitting on the ground, which is covered with a mat. I think this is
 ```
 
+## Using Trained Models for Inference
+
+After training, you can use your model with the standard transformers library:
+
+```python
+from models.vision_language_model import VisionLanguageModel
+from models import config
+from data.processors import get_tokenizer, get_image_processor
+from PIL import Image
+import torch
+
+# Load checkpoint
+checkpoint_dir = "checkpoints/your_run_name"
+model = VisionLanguageModel.from_pretrained(checkpoint_dir)
+model.eval()
+
+# Setup tokenizer and processor (recreated from config)
+cfg = model.cfg
+tokenizer = get_tokenizer(cfg.lm_tokenizer, cfg.vlm_extra_tokens, cfg.lm_chat_template)
+image_processor = get_image_processor(cfg)
+
+# Process image and text
+image = Image.open("path/to/image.jpg")
+processed_image = image_processor(image)
+prompt = "What is in this image?"
+
+# Generate response
+response = model.generate(
+    processed_image,
+    prompt,
+    tokenizer,
+    max_new_tokens=100,
+    temperature=0.7
+)
+print(response)
+```
+
+For a complete example, see `inference_example.py` in the repository.
+
 ### Evaluation with lmms-eval
 
-nanoVLM now supports evaluation using the comprehensive [lmms-eval](https://github.com/EvolvingLMMs-Lab/lmms-eval) toolkit:
+nanoVLM supports evaluation using the comprehensive [lmms-eval](https://github.com/EvolvingLMMs-Lab/lmms-eval) toolkit:
 
 ```bash
 # Install lmms-eval (has to be from source)
@@ -194,10 +292,13 @@ huggingface-cli login
 # Evaluate a trained model on multiple benchmarks
 python evaluation.py --model lusxvr/nanoVLM-450M --tasks mmstar,mme
 
-# If you want to use it during training, simply import the module and call it just as you would from the command line.
-# You can pass all the arguments you can also pass in the command line.
-# The evaluation during training works in the full DDP setup.
+# Enable lmms-eval during training (disabled by default for speed)
+python train.py --use_lmms_eval --lmms_eval_tasks "mmstar,mme" --lmms_eval_limit 1000
+
+# If you want to use it programmatically:
 from evaluation import cli_evaluate
+import argparse
+
 args = argparse.Namespace(
     model='lusxvr/nanoVLM-450M', # This can be either a checkpoint path or the model itself
     tasks='mmstar,mmmu,ocrbench',
@@ -205,6 +306,8 @@ args = argparse.Namespace(
 )
 results = cli_evaluate(args)
 ```
+
+**Note**: lmms-eval is disabled by default during training as it's computationally expensive. Enable it explicitly with `--use_lmms_eval` when you want benchmark scores.
 
 ## Hub integration
 
