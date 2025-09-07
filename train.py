@@ -507,12 +507,24 @@ def train(train_cfg, vlm_cfg):
                 if train_cfg.validation_steps is not None
                 else train_cfg.eval_interval
             )
-            if (
+
+            # Check if we should run validation
+            should_validate = (
                 train_cfg.eval_in_epochs
                 and global_step % validation_interval == 0
                 and is_update_step
                 and global_step > 0
-            ):
+            )
+
+            # Check if we should save best model (only at eval_interval)
+            should_save_best = (
+                train_cfg.eval_in_epochs
+                and global_step % train_cfg.eval_interval == 0
+                and is_update_step
+                and global_step > 0
+            )
+
+            if should_validate:
                 model.eval()
                 if device == "cuda":
                     torch.cuda.empty_cache()
@@ -543,25 +555,16 @@ def train(train_cfg, vlm_cfg):
                     avg_val_loss = (
                         mean(dist_gather(avg_val_loss)) if is_dist() else avg_val_loss
                     )
+
+                    # Track best validation loss but don't auto-save
                     if avg_val_loss < best_val_loss:
                         best_val_loss = avg_val_loss
                         if is_master():
-                            save_model = (
-                                model.module if is_dist() else model
-                            )  # unwrap the model for saving if DDP
-                            checkpoint_dir = (
-                                Path(vlm_cfg.vlm_checkpoint_path) / run_name
-                            )
-                            save_model.save_pretrained(
-                                save_directory=str(checkpoint_dir)
-                            )
-                            # Save tokenizer and processor
-                            save_tokenizer_and_processor(
-                                tokenizer, image_processor, checkpoint_dir
-                            )
+                            print(f"New best validation loss: {best_val_loss:.4f}")
 
                     lmms_results = {}
-                    if train_cfg.use_lmms_eval:
+                    # Only run lmms_eval at eval_interval, not every validation
+                    if should_save_best and train_cfg.use_lmms_eval:
                         from evaluation import cli_evaluate
 
                         eval_args = argparse.Namespace(
