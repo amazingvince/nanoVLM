@@ -214,8 +214,9 @@ def get_dataloaders(train_cfg, vlm_cfg):
         vlm_cfg.mp_image_token_length,
     )
 
-    # Create collators
-    vqa_collator = VQACollator(tokenizer, vlm_cfg.lm_max_length)
+    # Create separate collators for training and validation
+    train_collator = VQACollator(tokenizer, vlm_cfg.lm_max_length, is_validation=False)
+    val_collator = VQACollator(tokenizer, vlm_cfg.lm_max_length, is_validation=True)
 
     g = torch.Generator()
     g.manual_seed(0)
@@ -225,7 +226,7 @@ def get_dataloaders(train_cfg, vlm_cfg):
     train_loader = DataLoader(
         train_dataset,
         batch_size=train_cfg.batch_size,  # =per device BS in DDP
-        collate_fn=vqa_collator,
+        collate_fn=train_collator,
         num_workers=train_cfg.num_workers,
         pin_memory=True,
         drop_last=True,
@@ -244,7 +245,7 @@ def get_dataloaders(train_cfg, vlm_cfg):
         val_dataset,
         batch_size=train_cfg.batch_size,
         sampler=val_sampler,
-        collate_fn=vqa_collator,
+        collate_fn=val_collator,
         num_workers=train_cfg.num_workers,
         pin_memory=True,
         drop_last=True,
@@ -512,6 +513,10 @@ def train(train_cfg, vlm_cfg):
                 with torch.no_grad():
                     total_val_loss = 0
                     for batch in val_loader:
+                        # Skip None batches (shouldn't happen with truncation, but handle gracefully)
+                        if batch is None:
+                            continue
+                            
                         images = batch["images"]
                         input_ids = batch["input_ids"].to(device)
                         labels = batch["labels"].to(device)

@@ -248,7 +248,8 @@ def main():
     print(f"✓ Validation dataset loaded with {len(val_dataset)} samples")
 
     # Create dataloader
-    collator = VQACollator(tokenizer, max_length=cfg.lm_max_length)
+    # Use validation collator that truncates instead of discarding long sequences
+    collator = VQACollator(tokenizer, max_length=cfg.lm_max_length, is_validation=True)
     val_loader = DataLoader(
         val_dataset,
         batch_size=args.batch_size,
@@ -278,6 +279,10 @@ def main():
         ):
             if args.limit_batches and batch_idx >= args.limit_batches:
                 break
+            
+            # Skip None batches (shouldn't happen with truncation, but handle gracefully)
+            if batch is None:
+                continue
 
             input_ids = batch["input_ids"].to(device)
             images = batch["images"]

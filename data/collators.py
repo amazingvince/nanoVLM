@@ -35,15 +35,23 @@ class BaseCollator(object):
         batch = {k: [item[k] for item in batch] for k in batch[0]}
 
         if max_length is not None:
-            batch = self._discard_samples_that_are_too_long(batch, max_length)
+            if self.is_validation:
+                # During validation, truncate sequences instead of discarding them
+                batch = self._truncate_samples_that_are_too_long(batch, max_length)
+            else:
+                # During training, discard samples that are too long
+                batch = self._discard_samples_that_are_too_long(batch, max_length)
 
-        # If all samples were filtered out, this should be caught by the dataloader
-        # and it should fetch a new batch. For now, if this happens, raise an error
-        # since a VLM should always have valid image-text pairs
+        # If all samples were filtered out during training, raise an error
+        # During validation, this shouldn't happen since we truncate instead
         if not batch["input_ids"]:
-            raise ValueError(
-                "All samples in batch were filtered out. This shouldn't happen in VLM training."
-            )
+            if self.is_validation:
+                # This shouldn't happen with truncation, but handle gracefully
+                return None
+            else:
+                raise ValueError(
+                    "All samples in batch were filtered out. This shouldn't happen in VLM training."
+                )
 
         # Pad samples to max length
         if max_length is not None:
@@ -83,10 +91,37 @@ class BaseCollator(object):
             "images": list(batch_images),
         }
 
+    def _truncate_samples_that_are_too_long(self, batch, max_length):
+        """Truncate sequences that are too long instead of discarding them (for validation)."""
+        truncated_ids = []
+        truncated_labels = []
+        truncated_attentions = []
+        
+        for ids, label, attn in zip(
+            batch["input_ids"], batch["labels"], batch["attention_mask"]
+        ):
+            if len(ids) > max_length:
+                # Truncate from the end (keeping the beginning with image tokens)
+                truncated_ids.append(ids[:max_length])
+                truncated_labels.append(label[:max_length])
+                truncated_attentions.append(attn[:max_length])
+            else:
+                truncated_ids.append(ids)
+                truncated_labels.append(label)
+                truncated_attentions.append(attn)
+        
+        return {
+            "input_ids": truncated_ids,
+            "labels": truncated_labels,
+            "attention_mask": truncated_attentions,
+            "images": batch["images"],
+        }
+
 
 class VQACollator(BaseCollator):  # Visual Question Answering Collator
-    def __init__(self, tokenizer, max_length):
+    def __init__(self, tokenizer, max_length, is_validation=False):
         self.max_length = max_length
+        self.is_validation = is_validation
         super().__init__(tokenizer)
 
     def _pad_batch(
