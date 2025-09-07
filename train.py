@@ -847,7 +847,7 @@ def main():
     parser.add_argument(
         "--use_preset",
         type=str,
-        choices=["dinov3_gemma", None],
+        choices=["dinov3_gemma", "original_small", None],
         default=None,
         help="Use a preset configuration (overrides vision_encoder and language_model)",
     )
@@ -964,6 +964,8 @@ def main():
     # Select configuration based on arguments
     if args.use_preset == "dinov3_gemma":
         vlm_cfg = config.get_dinov3_gemma_config()
+    elif args.use_preset == "original_small":
+        vlm_cfg = config.get_original_small_config()
     else:
         vlm_cfg = config.VLMConfig()
 

@@ -154,6 +154,44 @@ class TrainConfig:
 
 
 # Preset configurations
+def get_original_small_config():
+    """Returns config for original smaller models: SigLIP-B/16-224-85M + SmolLM2-135M (222M total)"""
+    return VLMConfig(
+        # SigLIP-B/16-224-85M settings
+        vit_architecture="siglip",
+        vit_model_type="google/siglip-base-patch16-224",  # Original smaller SigLIP
+        vit_img_size=224,  # 224x224 images
+        vit_patch_size=16,
+        vit_hidden_dim=768,  # Base model dimensions
+        vit_inter_dim=3072,  # 4 * 768
+        vit_n_heads=12,
+        vit_n_blocks=12,
+        vit_cls_flag=False,  # SigLIP doesn't use CLS token
+        
+        # SmolLM2-135M settings  
+        lm_architecture="llama",
+        lm_model_type="HuggingFaceTB/SmolLM2-135M",  # Original smaller SmolLM
+        lm_tokenizer="HuggingFaceTB/SmolLM2-135M",
+        lm_hidden_dim=576,  # SmolLM2-135M dimensions
+        lm_inter_dim=1536,  # Intermediate dimension
+        lm_n_heads=9,
+        lm_n_kv_heads=3,
+        lm_n_blocks=30,
+        lm_base_vocab_size=49152,
+        lm_max_position_embeddings=8192,
+        lm_rms_eps=1e-5,
+        lm_re_base=100000,
+        
+        # Modality projector - for 224x224 images
+        mp_pixel_shuffle_factor=2,  # Since 224/16 = 14, need factor of 2
+        mp_image_token_length=49,  # (14/2)^2 = 49
+        mp_handle_special_tokens=False,
+        
+        # Override max_img_size to match input
+        max_img_size=224,
+    )
+
+
 def get_dinov3_gemma_config():
     """Returns config for DINOv3 + Gemma - dimensions auto-detected from models"""
     return VLMConfig(
