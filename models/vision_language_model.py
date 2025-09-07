@@ -45,9 +45,32 @@ class VisionLanguageModel(nn.Module):
 
         # Build a mask of all image-token positions: shape [B, T_seq]
         mask = input_ids == self.tokenizer.image_token_id
-        updated_token_embd[mask] = image_embd.view(-1, image_embd.size(-1)).to(
-            updated_token_embd.dtype
-        )  # torch flattens before assigning
+
+        # Count how many image tokens we have in the input
+        num_image_tokens = mask.sum().item()
+
+        # Flatten image embeddings
+        flat_image_embd = image_embd.view(-1, image_embd.size(-1))
+
+        # If we have more embeddings than tokens (due to truncation), only use what we need
+        if flat_image_embd.size(0) > num_image_tokens:
+            # Truncate image embeddings to match the number of image tokens
+            flat_image_embd = flat_image_embd[:num_image_tokens]
+        elif flat_image_embd.size(0) < num_image_tokens:
+            # This shouldn't happen, but handle gracefully
+            print(
+                f"Warning: Expected {num_image_tokens} image embeddings but got {flat_image_embd.size(0)}"
+            )
+            # Pad with zeros if we somehow have fewer embeddings than tokens
+            padding = torch.zeros(
+                num_image_tokens - flat_image_embd.size(0),
+                flat_image_embd.size(-1),
+                dtype=flat_image_embd.dtype,
+                device=flat_image_embd.device,
+            )
+            flat_image_embd = torch.cat([flat_image_embd, padding], dim=0)
+
+        updated_token_embd[mask] = flat_image_embd.to(updated_token_embd.dtype)
 
         return updated_token_embd
 
