@@ -516,7 +516,7 @@ def train(train_cfg, vlm_cfg):
                         # Skip None batches (shouldn't happen with truncation, but handle gracefully)
                         if batch is None:
                             continue
-                            
+
                         images = batch["images"]
                         input_ids = batch["input_ids"].to(device)
                         labels = batch["labels"].to(device)

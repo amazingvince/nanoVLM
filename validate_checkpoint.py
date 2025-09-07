@@ -279,7 +279,7 @@ def main():
         ):
             if args.limit_batches and batch_idx >= args.limit_batches:
                 break
-            
+
             # Skip None batches (shouldn't happen with truncation, but handle gracefully)
             if batch is None:
                 continue

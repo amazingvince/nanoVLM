@@ -96,7 +96,7 @@ class BaseCollator(object):
         truncated_ids = []
         truncated_labels = []
         truncated_attentions = []
-        
+
         for ids, label, attn in zip(
             batch["input_ids"], batch["labels"], batch["attention_mask"]
         ):
@@ -109,7 +109,7 @@ class BaseCollator(object):
                 truncated_ids.append(ids)
                 truncated_labels.append(label)
                 truncated_attentions.append(attn)
-        
+
         return {
             "input_ids": truncated_ids,
             "labels": truncated_labels,
