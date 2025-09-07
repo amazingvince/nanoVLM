@@ -141,7 +141,7 @@ class TrainConfig:
     wandb_entity: str = None  # Leave as None to use your default wandb entity
     log_wandb: bool = True
     wandb_log_steps: int = 5  # Log to wandb every N steps (default 5 for efficiency)
-    use_lmms_eval: bool = True  # Use lmms-eval for evaluation
+    use_lmms_eval: bool = False  # Use lmms-eval for evaluation (expensive, disabled by default)
     lmms_eval_tasks: str = "mmstar,mmmu,ocrbench,textvqa"  # Pass additional task as one string, seperated by commas without spaces (e.g. 'mmstar,mmmu,ocrbench')
     lmms_eval_limit: int = 2000
     lmms_eval_batch_size: int = 128
