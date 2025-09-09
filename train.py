@@ -96,7 +96,7 @@ def wrap_model(model):
 def get_run_name(train_cfg, vlm_cfg, custom_name=None):
     if custom_name:
         return custom_name
-        
+
     dataset_size = (
         "full_ds"
         if train_cfg.data_cutoff_idx is None
@@ -1063,7 +1063,7 @@ def main():
     train_cfg.save_checkpoint_steps = args.save_checkpoint_steps
     train_cfg.wandb_entity = args.wandb_entity
     train_cfg.val_ratio = args.val_ratio
-    
+
     # Handle max_steps alias
     if args.max_steps is not None:
         train_cfg.max_training_steps = args.max_steps
