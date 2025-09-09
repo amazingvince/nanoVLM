@@ -62,19 +62,21 @@ class ModalityProjector(nn.Module):
     def pixel_shuffle_2d(self, x, gh, gw):
         """Pixel shuffle for rectangular grids."""
         bsz, seq, embed_dim = x.size()
-        assert seq == gh * gw, f"seq {seq} != gh*gw {gh*gw}"
+        assert seq == gh * gw, f"seq {seq} != gh*gw {gh * gw}"
         s = self.scale_factor
-        assert gh % s == 0 and gw % s == 0, f"Grid dimensions (gh={gh}, gw={gw}) must be divisible by scale factor {s}"
-        
+        assert gh % s == 0 and gw % s == 0, (
+            f"Grid dimensions (gh={gh}, gw={gw}) must be divisible by scale factor {s}"
+        )
+
         # Calculate output dimensions
         ho, wo = gh // s, gw // s
-        
+
         # Reshape and permute for pixel shuffle
         x = x.view(bsz, gh, gw, embed_dim)
         x = x.view(bsz, ho, s, wo, s, embed_dim)
         x = x.permute(0, 1, 3, 2, 4, 5).contiguous()
         x = x.view(bsz, ho * wo, embed_dim * s * s)
-        
+
         return x
 
     def forward(self, x, gh=None, gw=None):

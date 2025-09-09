@@ -13,9 +13,7 @@ class BaseCollator(object):
             for ids in batch["input_ids"]
         ]
         batch["labels"] = [
-            torch.nn.functional.pad(
-                labels, (max_length - len(labels), 0), value=-100
-            )
+            torch.nn.functional.pad(labels, (max_length - len(labels), 0), value=-100)
             for labels in batch["labels"]
         ]
         batch["attention_mask"] = [
@@ -64,7 +62,7 @@ class BaseCollator(object):
 
         # Extract image grids if available
         image_grids = batch.get("image_grids", [])
-        
+
         return {
             "input_ids": torch.stack(batch["input_ids"]),
             "attention_mask": torch.stack(batch["attention_mask"]),

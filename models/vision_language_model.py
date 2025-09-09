@@ -74,7 +74,9 @@ class VisionLanguageModel(nn.Module):
 
         return updated_token_embd
 
-    def forward(self, input_ids, images, attention_mask=None, targets=None, image_grids=None):
+    def forward(
+        self, input_ids, images, attention_mask=None, targets=None, image_grids=None
+    ):
         if isinstance(images, list):
             if not images:  # Handle cases with no images
                 images = torch.empty(
@@ -97,7 +99,7 @@ class VisionLanguageModel(nn.Module):
 
         # Process vision features
         image_embd = self.vision_encoder(images)
-        
+
         # Apply modality projector with grid dimensions if available
         if image_grids is not None and len(image_grids) > 0:
             # Process each image separately with its grid
@@ -108,17 +110,17 @@ class VisionLanguageModel(nn.Module):
                     Hp, Wp = self.vision_encoder.patch_embedding._last_hw
                 else:
                     # Fallback: compute from sequence length
-                    seq_len = image_embd[i:i+1].shape[1]
+                    seq_len = image_embd[i : i + 1].shape[1]
                     if self.cfg.vit_cls_flag:
                         seq_len -= 1
                     if hasattr(self.cfg, "vit_num_registers"):
                         seq_len -= self.cfg.vit_num_registers
-                    Hp = Wp = int(seq_len ** 0.5)
-                
+                    Hp = Wp = int(seq_len**0.5)
+
                 # Pass grid dimensions to modality projector
-                proj_embd = self.MP(image_embd[i:i+1], gh=Hp, gw=Wp)
+                proj_embd = self.MP(image_embd[i : i + 1], gh=Hp, gw=Wp)
                 projected.append(proj_embd)
-            
+
             if projected:
                 image_embd = torch.cat(projected, dim=0)
             else:
@@ -184,7 +186,7 @@ class VisionLanguageModel(nn.Module):
 
         # 1. Process image
         image_embd = self.vision_encoder(images)  # [B, T_img_feat, D_model]
-        
+
         # Apply modality projector with grid dimensions if available
         if image_grids is not None and len(image_grids) > 0:
             # Process each image separately with its grid
@@ -195,17 +197,17 @@ class VisionLanguageModel(nn.Module):
                     Hp, Wp = self.vision_encoder.patch_embedding._last_hw
                 else:
                     # Fallback: compute from sequence length
-                    seq_len = image_embd[i:i+1].shape[1]
+                    seq_len = image_embd[i : i + 1].shape[1]
                     if self.cfg.vit_cls_flag:
                         seq_len -= 1
                     if hasattr(self.cfg, "vit_num_registers"):
                         seq_len -= self.cfg.vit_num_registers
-                    Hp = Wp = int(seq_len ** 0.5)
-                
+                    Hp = Wp = int(seq_len**0.5)
+
                 # Pass grid dimensions to modality projector
-                proj_embd = self.MP(image_embd[i:i+1], gh=Hp, gw=Wp)
+                proj_embd = self.MP(image_embd[i : i + 1], gh=Hp, gw=Wp)
                 projected.append(proj_embd)
-            
+
             if projected:
                 image_embd = torch.cat(projected, dim=0)
             else:

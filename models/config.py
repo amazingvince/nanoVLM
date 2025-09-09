@@ -73,7 +73,9 @@ class VLMConfig:
 
     # === Modality Projector Configuration ===
     mp_pixel_shuffle_factor: int = 4
-    mp_image_token_length: int = 64  # 1 for DINOv3 (dynamic grids), >1 for SigLIP (fixed grids)
+    mp_image_token_length: int = (
+        64  # 1 for DINOv3 (dynamic grids), >1 for SigLIP (fixed grids)
+    )
     mp_handle_special_tokens: bool = False  # True for DINOv3 to remove registers
 
     max_img_size: int = 1024

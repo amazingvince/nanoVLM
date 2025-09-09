@@ -1,6 +1,6 @@
 import torchvision.transforms as transforms
-from transformers import AutoTokenizer
 from torchvision.transforms import Normalize
+from transformers import AutoTokenizer
 
 from data.custom_transforms import DynamicResize, SplitImage
 
@@ -99,21 +99,23 @@ def get_image_processor(
                     Normalize(IMAGENET_MEAN, IMAGENET_STD),
                 ]
             )
-            
+
             # Apply transforms
             x = transform(pil_image)  # C, H, W
             _, H, W = x.shape
-            
+
             # Calculate patch grid dimensions
             Hp, Wp = H // vit_patch_size, W // vit_patch_size
-            
+
             # Calculate final grid after pixel shuffle
             s = pixel_shuffle_factor
-            assert Hp % s == 0 and Wp % s == 0, f"Patch grid (Hp={Hp}, Wp={Wp}) must be divisible by pixel_shuffle_factor={s}"
+            assert Hp % s == 0 and Wp % s == 0, (
+                f"Patch grid (Hp={Hp}, Wp={Wp}) must be divisible by pixel_shuffle_factor={s}"
+            )
             Gh, Gw = Hp // s, Wp // s
-            
+
             return x, (Gh, Gw)
-        
+
         return process_single_image
     else:
         # For SigLIP: split into multiple sub-images with normalization
@@ -133,7 +135,7 @@ def get_image_string(tokenizer, splitted_image_counts, mp_image_token_length):
     for idx, (n_h, n_w) in enumerate(splitted_image_counts):
         if len(splitted_image_counts) > 1:
             image_string += f"<image: {idx}>"
-        
+
         # For DINOv3 with dynamic grids, use actual grid dimensions
         # mp_image_token_length=1 means each grid cell gets 1 token
         if mp_image_token_length == 1:

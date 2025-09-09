@@ -221,7 +221,9 @@ class ViTMultiHeadAttention(nn.Module):
         self.head_dim = self.embd_dim // self.n_heads
         self.dropout = cfg.vit_dropout
         self.use_rope = getattr(cfg, "vit_use_rope", False)
-        self.use_dinov3_rope = self.use_rope and getattr(cfg, "vit_architecture", "siglip") == "dinov3"
+        self.use_dinov3_rope = (
+            self.use_rope and getattr(cfg, "vit_architecture", "siglip") == "dinov3"
+        )
 
         assert self.embd_dim % self.n_heads == 0, (
             "embd_dim must be divisible by num_heads"
