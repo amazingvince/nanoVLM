@@ -60,15 +60,12 @@ class BaseCollator(object):
             batch, max_len
         )  #  dictionaries in Python are mutable and passed by reference
 
-        # Extract image grids if available
-        image_grids = batch.get("image_grids", [])
-
         return {
             "input_ids": torch.stack(batch["input_ids"]),
             "attention_mask": torch.stack(batch["attention_mask"]),
             "images": batch["images"],
             "labels": torch.stack(batch["labels"]),
-            "image_grids": image_grids,
+            "image_grids": batch.get("image_grids", []),
         }
 
     def _discard_samples_that_are_too_long(self, batch, max_length):
@@ -117,6 +114,7 @@ class BaseCollator(object):
             "labels": truncated_labels,
             "attention_mask": truncated_attentions,
             "images": batch["images"],
+            "image_grids": batch.get("image_grids", []),
         }
 
 
