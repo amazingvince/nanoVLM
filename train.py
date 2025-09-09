@@ -204,16 +204,19 @@ def get_dataloaders(train_cfg, vlm_cfg):
         vlm_cfg.mp_image_token_length,
     )
 
-    train_dataset = ConstantLengthDataset(
-        train_dataset,
-        infinite=False,
-        max_sample_length=train_cfg.max_sample_length,
-        seq_length=vlm_cfg.lm_max_length,
-        num_of_sequences=train_cfg.batch_size * 64,
-        queue_size=train_cfg.batch_size * 64 * 2,
-        max_images_per_example=train_cfg.max_images_per_example,
-        max_images_per_knapsack=train_cfg.max_images_per_knapsack,
-    )
+    # Skip ConstantLengthDataset for DINOv3 (single_image_mode)
+    # as it doesn't preserve image_grids needed for dynamic tokens
+    if not single_image_mode:
+        train_dataset = ConstantLengthDataset(
+            train_dataset,
+            infinite=False,
+            max_sample_length=train_cfg.max_sample_length,
+            seq_length=vlm_cfg.lm_max_length,
+            num_of_sequences=train_cfg.batch_size * 64,
+            queue_size=train_cfg.batch_size * 64 * 2,
+            max_images_per_example=train_cfg.max_images_per_example,
+            max_images_per_knapsack=train_cfg.max_images_per_knapsack,
+        )
     val_dataset = VQADataset(
         train_ds.select(range(train_size, total_samples)),
         tokenizer,
