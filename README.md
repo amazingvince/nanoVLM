@@ -32,18 +32,19 @@ nanoVLM now supports flexible combinations of vision encoders and language model
   - Input: 512×512 images → 1024 patches → 64 tokens after projection
   - Position embeddings: Learned
   
-- **DINOv3**: Meta's latest self-supervised vision transformer
+- **DINOv3**: Meta's latest self-supervised vision transformer with high-resolution support
   - Models: 
     - `facebook/dinov3-vits16plus-pretrain-lvd1689m` (default)
     - `facebook/dinov3-vitb16-pretrain-lvd1689m` 
     - `facebook/dinov3-vitl14-pretrain-lvd1689m`
-  - Input: 224×224 images → 196 patches + 4 registers + 1 CLS → 49 tokens after projection
-  - Position embeddings: RoPE with patch center coordinates
-  - Features: LayerScale, SwiGLU FFN, register tokens
+  - Input: Aspect-preserving resize up to 1024px → Dynamic patches + 4 registers + 1 CLS → Dynamic tokens
+  - Token counts: Scale with image size (e.g., 768×1024 → 768 tokens, 960×960 → 900 tokens)
+  - Position embeddings: RoPE with patch center coordinates (enables arbitrary resolutions)
+  - Features: LayerScale, SwiGLU FFN, register tokens, rectangular grid support
   
 - **DINOv2**: Previous generation DINO model
   - Model: `facebook/dinov2-vits14`
-  - Input: 224×224 images
+  - Input: Fixed 224×224 images
   - Position embeddings: Learned
 
 ### Language Models
@@ -132,7 +133,7 @@ This configuration uses:
 - **Vision**: DINOv3 with RoPE position embeddings
   - Available sizes: `vits16plus` (default), `vitb16`, `vitl14`
 - **Language**: Gemma-3-270M-IT (google/gemma-3-270m-it)
-- **Image size**: 224x224 (processed as single image with 16x16 patches)
+- **Image processing**: High-resolution support up to 1024px with dynamic token grids
 
 #### Custom Vision/Language Combinations
 ```bash

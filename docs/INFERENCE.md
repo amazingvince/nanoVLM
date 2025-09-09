@@ -73,7 +73,7 @@ with open("checkpoints/your_model/step_1000/processor/preprocessor_config.json")
 The image processor configuration varies by architecture:
 
 ### SigLIP Models
-- Splits large images into multiple 224x224 patches
+- Splits large images into multiple patches based on vit_img_size
 - Uses dynamic resizing up to max_img_size
 - Config saved in `preprocessor_config.json`
 

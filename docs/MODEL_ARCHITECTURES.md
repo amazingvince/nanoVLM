@@ -161,13 +161,17 @@ Advanced configuration combining DINOv3's spatial understanding with Gemma's eff
 
 **Configuration:**
 ```python
-- Image size: 224×224
+- Image size: Up to 1024px (configurable via max_img_size)
 - Register tokens: 4
 - CLS token: Yes
 - LayerScale: Enabled
-- RoPE: Enabled for improved spatial encoding
+- RoPE: Enabled for arbitrary resolution support
 - SwiGLU: Enabled (for vits16plus model)
-- Image tokens after projection: 49
+- Image tokens: Dynamic based on input size
+  - 384×384 → 144 tokens
+  - 768×1024 → 768 tokens  
+  - 960×960 → 900 tokens
+  - Up to 18× more tokens than fixed 224×224
 ```
 
 **Best for:**
@@ -253,7 +257,7 @@ python train.py --batch_size 2 --gradient_accumulation_steps 32
 ## Architecture Details
 
 ### Vision Processing Pipeline
-1. **Image Input** → Resize to encoder's expected size (224×224 or 512×512)
+1. **Image Input** → Resize to encoder's expected size (configurable, up to 1024px for DINOv3)
 2. **Patch Embedding** → Convert image patches to embeddings (patch_size=16 or 14)
 3. **Position Encoding** → Add spatial information:
    - SigLIP: Learned position embeddings
@@ -278,6 +282,38 @@ python train.py --batch_size 2 --gradient_accumulation_steps 32
    - SmolLM: Grouped-query attention (GQA)
    - Gemma: Custom attention with head_dim=256
 4. **Output Head** → Generate next token predictions
+
+## High-Resolution Capabilities (DINOv3)
+
+DINOv3 now supports high-resolution images with dynamic token grids, a major improvement over fixed 224×224 processing:
+
+### Key Improvements
+- **Aspect-preserving resize**: Images maintain their natural proportions
+- **Dynamic token counts**: Visual tokens scale with image size (144-900+ tokens vs fixed 49)
+- **RoPE positional encoding**: Enables arbitrary resolutions with proper spatial awareness
+- **Rectangular grid support**: No longer restricted to square images
+
+### Token Scaling Examples
+| Image Size | Patch Grid | Final Tokens | vs Old Fixed |
+|------------|------------|--------------|-------------|
+| 384×384   | 24×24     | 144          | 2.9×        |
+| 768×1024  | 48×64     | 768          | 15.7×       |
+| 960×960   | 60×60     | 900          | 18.4×       |
+
+### Benefits for Tasks
+- **OCR & Documents**: Fine text details preserved at high resolution
+- **UI Screenshots**: Interface elements remain sharp and readable
+- **Medical/Scientific Images**: Critical details not lost to downsampling
+- **Natural Images**: Better object detection and fine-grained recognition
+
+### Configuration
+```python
+vit_architecture="dinov3"
+vit_use_rope=True  # Essential for high-res
+max_img_size=1024  # Configurable limit
+mp_pixel_shuffle_factor=2  # Reduces memory usage
+mp_image_token_length=1  # Dynamic tokens
+```
 
 ## Choosing the Right Configuration
 
