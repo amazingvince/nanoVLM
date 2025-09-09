@@ -180,7 +180,10 @@ class ViTPatchEmbeddings(nn.Module):
 
     def forward(self, x):
         B = x.shape[0]
-        x = self.conv(x)  # extract patches
+        x = self.conv(x)  # extract patches -> B, C, Hp, Wp
+        # Store the patch grid dimensions for RoPE
+        Hp, Wp = x.shape[-2], x.shape[-1]
+        self._last_hw = (Hp, Wp)
         x = x.flatten(2)  # flatten the patches into a single dimension
         x = x.transpose(1, 2)  # transpose to (batch_size, num_patches, hidden_dim)
 
@@ -217,7 +220,8 @@ class ViTMultiHeadAttention(nn.Module):
         self.embd_dim = cfg.vit_hidden_dim
         self.head_dim = self.embd_dim // self.n_heads
         self.dropout = cfg.vit_dropout
-        self.use_rope = cfg.vit_use_rope if hasattr(cfg, "vit_use_rope") else False
+        self.use_rope = getattr(cfg, "vit_use_rope", False)
+        self.use_dinov3_rope = self.use_rope and getattr(cfg, "vit_architecture", "siglip") == "dinov3"
 
         assert self.embd_dim % self.n_heads == 0, (
             "embd_dim must be divisible by num_heads"
@@ -262,7 +266,7 @@ class ViTMultiHeadAttention(nn.Module):
         )  # (B, n_heads, T, head_dim)
 
         # Apply DINOv3 RoPE if enabled
-        if getattr(self, "use_dinov3_rope", False) and position_embeddings is not None:
+        if self.use_dinov3_rope and position_embeddings is not None:
             cos, sin = position_embeddings
             # Determine number of prefix tokens (CLS + registers)
             num_prefix = 1 if self.cfg.vit_cls_flag else 0
@@ -409,14 +413,18 @@ class ViT(nn.Module):
         position_embeddings = None
         use_dinov3_rope = getattr(self.cfg, "vit_architecture", "siglip") == "dinov3"
         if use_dinov3_rope and hasattr(self, "rope_embeddings"):
-            # Calculate number of patches from input
-            num_patches_h = num_patches_w = int(
-                math.sqrt(
-                    (x.shape[1] - 1 - getattr(self.cfg, "vit_num_registers", 0))
-                    if self.cls_flag
-                    else x.shape[1] - getattr(self.cfg, "vit_num_registers", 0)
+            # Get the actual patch grid dimensions from patch embedding
+            if hasattr(self.patch_embedding, "_last_hw"):
+                num_patches_h, num_patches_w = self.patch_embedding._last_hw
+            else:
+                # Fallback to square grid if dimensions not available
+                num_patches_h = num_patches_w = int(
+                    math.sqrt(
+                        (x.shape[1] - 1 - getattr(self.cfg, "vit_num_registers", 0))
+                        if self.cls_flag
+                        else x.shape[1] - getattr(self.cfg, "vit_num_registers", 0)
+                    )
                 )
-            )
             cos, sin = self.rope_embeddings(
                 num_patches_h, num_patches_w, x.dtype, x.device
             )
@@ -464,9 +472,9 @@ class ViT(nn.Module):
             cfg.vit_use_swiglu = getattr(
                 hf_config, "use_gated_mlp", getattr(hf_config, "use_swiglu_ffn", False)
             )
-            # DINOv3 uses sin/cos embeddings, not RoPE or learned embeddings
-            cfg.vit_use_rope = False
-            cfg.vit_use_sincos_pos = True  # DINOv3 uses sin/cos position embeddings
+            # DINOv3 uses RoPE with patch-center coordinates for positional encoding
+            cfg.vit_use_rope = True
+            cfg.vit_use_sincos_pos = False  # DINOv3 uses RoPE, not sin/cos embeddings
             cfg.vit_ln_eps = getattr(hf_config, "layer_norm_eps", 1e-6)
 
             # DINOv3 features
