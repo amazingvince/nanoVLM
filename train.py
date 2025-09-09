@@ -847,9 +847,8 @@ def main():
     parser.add_argument(
         "--language_model",
         type=str,
-        choices=["llama", "smollm", "gemma"],
         default="smollm",
-        help="Language model architecture to use",
+        help="Language model to use. Can be: 'smollm', 'smollm-135m', 'smollm-360m', 'gemma', or a HuggingFace model ID",
     )
     parser.add_argument(
         "--use_preset",
@@ -1045,6 +1044,32 @@ def main():
             vlm_cfg.lm_vocab_size = config.round_up_to_multiple(
                 vlm_cfg.lm_base_vocab_size + vlm_cfg.extra_token_amount
             )
+        elif args.language_model in ["smollm", "smollm-360m"]:
+            # Default SmolLM2-360M
+            vlm_cfg.lm_architecture = "llama"
+            vlm_cfg.lm_model_type = "HuggingFaceTB/SmolLM2-360M-Instruct"
+            vlm_cfg.lm_tokenizer = "HuggingFaceTB/SmolLM2-360M-Instruct"
+            vlm_cfg.lm_hidden_dim = 960
+            vlm_cfg.lm_inter_dim = 2560
+            vlm_cfg.lm_n_heads = 15
+            vlm_cfg.lm_n_kv_heads = 5
+            vlm_cfg.lm_n_blocks = 32
+        elif args.language_model == "smollm-135m":
+            # Smaller SmolLM2-135M
+            vlm_cfg.lm_architecture = "llama"
+            vlm_cfg.lm_model_type = "HuggingFaceTB/SmolLM2-135M"
+            vlm_cfg.lm_tokenizer = "HuggingFaceTB/SmolLM2-135M"
+            vlm_cfg.lm_hidden_dim = 576
+            vlm_cfg.lm_inter_dim = 1536
+            vlm_cfg.lm_n_heads = 9
+            vlm_cfg.lm_n_kv_heads = 3
+            vlm_cfg.lm_n_blocks = 30
+        elif args.language_model.startswith("HuggingFaceTB/") or "/" in args.language_model:
+            # Direct HuggingFace model ID
+            vlm_cfg.lm_architecture = "llama"  # Assume LLaMA architecture for now
+            vlm_cfg.lm_model_type = args.language_model
+            vlm_cfg.lm_tokenizer = args.language_model
+            # Note: Hidden dims and other params will be loaded from the model config
 
     train_cfg = config.TrainConfig()
 
