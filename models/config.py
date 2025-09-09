@@ -73,7 +73,7 @@ class VLMConfig:
 
     # === Modality Projector Configuration ===
     mp_pixel_shuffle_factor: int = 4
-    mp_image_token_length: int = 64
+    mp_image_token_length: int = 64  # 1 for DINOv3 (dynamic grids), >1 for SigLIP (fixed grids)
     mp_handle_special_tokens: bool = False  # True for DINOv3 to remove registers
 
     max_img_size: int = 1024
@@ -218,8 +218,8 @@ def get_dinov3_gemma_config():
         lm_base_vocab_size=262144,  # Gemma-3 actual vocab
         extra_token_amount=17,
         # lm_vocab_size will be auto-computed and rounded in __post_init__
-        # Modality projector - for 224x224 images with patch_size=16
+        # Modality projector - DINOv3 uses dynamic grids
         mp_handle_special_tokens=True,
         mp_pixel_shuffle_factor=2,
-        mp_image_token_length=49,  # ((224/16)^2)/4 = 196/4 = 49 after pixel shuffle
+        mp_image_token_length=1,  # DINOv3: 1 token per grid cell (dynamic)
     )
