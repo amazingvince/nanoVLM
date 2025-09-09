@@ -93,7 +93,10 @@ def wrap_model(model):
     return DistributedDataParallel(model, device_ids=[dist.get_rank()])
 
 
-def get_run_name(train_cfg, vlm_cfg):
+def get_run_name(train_cfg, vlm_cfg, custom_name=None):
+    if custom_name:
+        return custom_name
+        
     dataset_size = (
         "full_ds"
         if train_cfg.data_cutoff_idx is None
@@ -288,7 +291,7 @@ def train(train_cfg, vlm_cfg):
         train_cfg, vlm_cfg
     )
 
-    run_name = get_run_name(train_cfg, vlm_cfg)
+    run_name = get_run_name(train_cfg, vlm_cfg, custom_name=getattr(args, 'run_name', None))
     total_dataset_size = len(train_loader.dataset)
     if train_cfg.log_wandb and is_master():
         if train_cfg.data_cutoff_idx is None:
@@ -962,6 +965,30 @@ def main():
         default=default_train_cfg.wandb_entity,
         help="Wandb entity name (leave empty for your default entity)",
     )
+    parser.add_argument(
+        "--max_img_size",
+        type=int,
+        default=default_vlm_cfg.max_img_size,
+        help="Maximum image size for processing (DINOv3 supports up to 1024)",
+    )
+    parser.add_argument(
+        "--run_name",
+        type=str,
+        default=None,
+        help="Custom run name for wandb and checkpoints",
+    )
+    parser.add_argument(
+        "--val_ratio",
+        type=float,
+        default=default_train_cfg.val_ratio,
+        help="Validation set ratio",
+    )
+    parser.add_argument(
+        "--max_steps",
+        type=int,
+        default=None,
+        help="Alias for max_training_steps",
+    )
 
     args = parser.parse_args()
 
@@ -1003,7 +1030,9 @@ def main():
             # DINOv3 can handle various image sizes with dynamic grids
             # pixel_shuffle_factor will adapt based on actual patch grid
             vlm_cfg.mp_pixel_shuffle_factor = 2
-            vlm_cfg.mp_image_token_length = 49  # (14/2)^2 = 7^2 = 49
+            # For DINOv3, token length is dynamic based on image size
+            # Setting to 1 for dynamic calculation
+            vlm_cfg.mp_image_token_length = 1
 
         # Update language model configuration
         if args.language_model == "gemma":
@@ -1033,9 +1062,15 @@ def main():
     train_cfg.validation_steps = args.validation_steps
     train_cfg.save_checkpoint_steps = args.save_checkpoint_steps
     train_cfg.wandb_entity = args.wandb_entity
+    train_cfg.val_ratio = args.val_ratio
+    
+    # Handle max_steps alias
+    if args.max_steps is not None:
+        train_cfg.max_training_steps = args.max_steps
 
     # Apply VLM configuration arguments
     vlm_cfg.vlm_checkpoint_path = args.vlm_checkpoint_path
+    vlm_cfg.max_img_size = args.max_img_size
 
     # Handle boolean flags
     train_cfg.compile = args.compile
