@@ -283,7 +283,7 @@ def get_lr(it, max_lr, max_steps):
     return min_lr + coeff * (max_lr - min_lr)
 
 
-def train(train_cfg, vlm_cfg):
+def train(train_cfg, vlm_cfg, custom_run_name=None):
     # Set thread limits before creating dataloaders
     set_thread_limits(train_cfg.max_threads)
 
@@ -291,7 +291,7 @@ def train(train_cfg, vlm_cfg):
         train_cfg, vlm_cfg
     )
 
-    run_name = get_run_name(train_cfg, vlm_cfg, custom_name=getattr(args, 'run_name', None))
+    run_name = get_run_name(train_cfg, vlm_cfg, custom_name=custom_run_name)
     total_dataset_size = len(train_loader.dataset)
     if train_cfg.log_wandb and is_master():
         if train_cfg.data_cutoff_idx is None:
@@ -1101,7 +1101,7 @@ def main():
         print("--- Train Config ---")
         print(train_cfg)
 
-    train(train_cfg, vlm_cfg)
+    train(train_cfg, vlm_cfg, custom_run_name=args.run_name)
 
     if is_dist():
         destroy_dist()
