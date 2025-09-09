@@ -79,9 +79,11 @@ class VLMConfig:
     mp_handle_special_tokens: bool = False  # True for DINOv3 to remove registers
 
     max_img_size: int = 1024
-    
+
     # Token budget control
-    vlm_max_image_tokens: int = 1024  # Maximum tokens per image to prevent context explosion
+    vlm_max_image_tokens: int = (
+        1024  # Maximum tokens per image to prevent context explosion
+    )
 
     vlm_extra_tokens: dict[str, str] = field(
         default_factory=lambda: {

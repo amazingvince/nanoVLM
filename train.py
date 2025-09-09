@@ -426,6 +426,7 @@ def train(train_cfg, vlm_cfg, custom_run_name=None):
             input_ids = batch["input_ids"].to(device)
             labels = batch["labels"].to(device)
             attention_mask = batch["attention_mask"].to(device)
+            image_grids = batch.get("image_grids", None)  # Get image grids for DINOv3
             data_load_time = time.time() - data_load_start
 
             # When using DDP with gradient accumulation,
@@ -450,7 +451,11 @@ def train(train_cfg, vlm_cfg, custom_run_name=None):
             with autocast_context:
                 with context:
                     _, loss = model(
-                        input_ids, images, attention_mask=attention_mask, targets=labels
+                        input_ids,
+                        images,
+                        attention_mask=attention_mask,
+                        targets=labels,
+                        image_grids=image_grids,
                     )
 
             if train_cfg.gradient_accumulation_steps > 1:
@@ -546,6 +551,9 @@ def train(train_cfg, vlm_cfg, custom_run_name=None):
                         input_ids = batch["input_ids"].to(device)
                         labels = batch["labels"].to(device)
                         attention_mask = batch["attention_mask"].to(device)
+                        image_grids = batch.get(
+                            "image_grids", None
+                        )  # Get image grids for DINOv3
 
                         with autocast_context:
                             _, loss = model(
@@ -553,6 +561,7 @@ def train(train_cfg, vlm_cfg, custom_run_name=None):
                                 images,
                                 attention_mask=attention_mask,
                                 targets=labels,
+                                image_grids=image_grids,
                             )
 
                         total_val_loss += loss.item()
