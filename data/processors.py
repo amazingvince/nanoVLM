@@ -88,10 +88,12 @@ def get_image_processor(
         # DINOv3 path: aspect-preserving resize with proper grid calculation
         def process_single_image(pil_image):
             # Create transform pipeline
+            # For DINOv3, we need dimensions divisible by patch_size * pixel_shuffle_factor
+            effective_patch_size = vit_patch_size * pixel_shuffle_factor
             transform = transforms.Compose(
                 [
                     DynamicResize(
-                        patch_size=vit_patch_size,
+                        patch_size=effective_patch_size,
                         max_side_len=max_img_size,
                         allow_upscale=allow_upscale,
                     ),
