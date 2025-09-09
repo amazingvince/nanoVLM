@@ -60,8 +60,21 @@ class ModalityProjector(nn.Module):
         return x
 
     def pixel_shuffle_2d(self, x, gh, gw):
-        """Pixel shuffle for rectangular grids."""
+        """Pixel shuffle for rectangular grids.
+        
+        When processing padded batches, gh and gw should be the ACTUAL
+        (unpadded) grid dimensions, and we extract only those tokens.
+        """
         bsz, seq, embed_dim = x.size()
+        
+        # If we have more tokens than expected (due to padding), take only the real ones
+        expected_seq = gh * gw
+        if seq > expected_seq:
+            # Extract only the real (non-padded) tokens
+            # Assuming padding is at the end (right and bottom)
+            x = x[:, :expected_seq, :]
+            seq = expected_seq
+        
         assert seq == gh * gw, f"seq {seq} != gh*gw {gh * gw}"
         s = self.scale_factor
         assert gh % s == 0 and gw % s == 0, (

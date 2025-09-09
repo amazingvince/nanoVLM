@@ -133,15 +133,33 @@ class VisionLanguageModel(nn.Module):
             if hasattr(self, "_batch_original_sizes"):
                 # Images were padded - use original sizes to compute correct grids
                 patch_size = self.cfg.vit_patch_size
+                
+                # Get the padded patch grid dimensions from the encoder
+                # (all images have same padded size after batching)
+                if hasattr(self.vision_encoder, 'patch_embedding') and \
+                   hasattr(self.vision_encoder.patch_embedding, '_last_hw'):
+                    padded_hp, padded_wp = self.vision_encoder.patch_embedding._last_hw
+                else:
+                    # Fallback: compute from sequence length
+                    seq_len = image_embd.shape[1]
+                    if self.cfg.vit_cls_flag:
+                        seq_len -= 1
+                    if hasattr(self.cfg, "vit_num_registers"):
+                        seq_len -= self.cfg.vit_num_registers
+                    padded_hp = padded_wp = int(seq_len**0.5)
 
                 for i, (orig_h, orig_w) in enumerate(self._batch_original_sizes):
                     # Calculate actual patch grid for original image (before padding)
                     Hp = orig_h // patch_size
                     Wp = orig_w // patch_size
-
+                    
+                    # Extract the full padded embeddings for this image
+                    # The modality projector will handle extracting only real tokens
+                    img_features = image_embd[i : i + 1]
+                    
                     # Pass original grid dimensions to modality projector
-                    # This ensures we only process real image tokens, not padding
-                    proj_embd = self.MP(image_embd[i : i + 1], gh=Hp, gw=Wp)
+                    # MP will extract only Hp*Wp tokens and ignore padding
+                    proj_embd = self.MP(img_features, gh=Hp, gw=Wp)
                     projected.append(proj_embd)
 
                 # Clean up
