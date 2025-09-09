@@ -1054,7 +1054,7 @@ def main():
             vlm_cfg.lm_n_heads = 15
             vlm_cfg.lm_n_kv_heads = 5
             vlm_cfg.lm_n_blocks = 32
-        elif args.language_model == "smollm-135m":
+        elif args.language_model == "smollm-135m" or args.language_model == "HuggingFaceTB/SmolLM2-135M":
             # Smaller SmolLM2-135M
             vlm_cfg.lm_architecture = "llama"
             vlm_cfg.lm_model_type = "HuggingFaceTB/SmolLM2-135M"
