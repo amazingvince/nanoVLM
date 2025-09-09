@@ -74,7 +74,7 @@ class VisionLanguageModel(nn.Module):
 
         return updated_token_embd
 
-    def forward(self, input_ids, images, attention_mask=None, targets=None):
+    def forward(self, input_ids, images, attention_mask=None, targets=None, image_grids=None):
         if isinstance(images, list):
             if not images:  # Handle cases with no images
                 images = torch.empty(
@@ -84,6 +84,7 @@ class VisionLanguageModel(nn.Module):
                     self.cfg.vit_image_size,
                     device=input_ids.device,
                 )
+                image_grids = []
             else:
                 if isinstance(images[0], list):
                     images = [img for sublist in images for img in sublist]
@@ -94,8 +95,37 @@ class VisionLanguageModel(nn.Module):
                 else:  # Already batched
                     images = torch.cat(images, dim=0).to(input_ids.device)
 
+        # Process vision features
         image_embd = self.vision_encoder(images)
-        image_embd = self.MP(image_embd)  # [num_images, mp_image_token_length, D_lm]
+        
+        # Apply modality projector with grid dimensions if available
+        if image_grids is not None and len(image_grids) > 0:
+            # Process each image separately with its grid
+            projected = []
+            for i, (gh, gw) in enumerate(image_grids):
+                # Get patch grid dimensions from vision encoder if stored
+                if hasattr(self.vision_encoder.patch_embedding, "_last_hw"):
+                    Hp, Wp = self.vision_encoder.patch_embedding._last_hw
+                else:
+                    # Fallback: compute from sequence length
+                    seq_len = image_embd[i:i+1].shape[1]
+                    if self.cfg.vit_cls_flag:
+                        seq_len -= 1
+                    if hasattr(self.cfg, "vit_num_registers"):
+                        seq_len -= self.cfg.vit_num_registers
+                    Hp = Wp = int(seq_len ** 0.5)
+                
+                # Pass grid dimensions to modality projector
+                proj_embd = self.MP(image_embd[i:i+1], gh=Hp, gw=Wp)
+                projected.append(proj_embd)
+            
+            if projected:
+                image_embd = torch.cat(projected, dim=0)
+            else:
+                image_embd = self.MP(image_embd)
+        else:
+            # Fallback to original square processing
+            image_embd = self.MP(image_embd)
 
         token_embd = self.decoder.token_embedding(input_ids)  # [B, T_sequence, D_lm]
 
@@ -135,6 +165,7 @@ class VisionLanguageModel(nn.Module):
         top_p=0.9,
         temperature=0.5,
         greedy=False,
+        image_grids=None,
     ):
         if isinstance(images, list):
             if not images:  # Handle cases with no images
@@ -145,6 +176,7 @@ class VisionLanguageModel(nn.Module):
                     self.cfg.vit_image_size,
                     device=input_ids.device,
                 )
+                image_grids = []
             else:
                 if isinstance(images[0], list):
                     images = [img for sublist in images for img in sublist]
@@ -152,7 +184,35 @@ class VisionLanguageModel(nn.Module):
 
         # 1. Process image
         image_embd = self.vision_encoder(images)  # [B, T_img_feat, D_model]
-        image_embd = self.MP(image_embd)  # [B, mp_image_token_length, D_lm]
+        
+        # Apply modality projector with grid dimensions if available
+        if image_grids is not None and len(image_grids) > 0:
+            # Process each image separately with its grid
+            projected = []
+            for i, (gh, gw) in enumerate(image_grids):
+                # Get patch grid dimensions from vision encoder if stored
+                if hasattr(self.vision_encoder.patch_embedding, "_last_hw"):
+                    Hp, Wp = self.vision_encoder.patch_embedding._last_hw
+                else:
+                    # Fallback: compute from sequence length
+                    seq_len = image_embd[i:i+1].shape[1]
+                    if self.cfg.vit_cls_flag:
+                        seq_len -= 1
+                    if hasattr(self.cfg, "vit_num_registers"):
+                        seq_len -= self.cfg.vit_num_registers
+                    Hp = Wp = int(seq_len ** 0.5)
+                
+                # Pass grid dimensions to modality projector
+                proj_embd = self.MP(image_embd[i:i+1], gh=Hp, gw=Wp)
+                projected.append(proj_embd)
+            
+            if projected:
+                image_embd = torch.cat(projected, dim=0)
+            else:
+                image_embd = self.MP(image_embd)
+        else:
+            # Fallback to original square processing
+            image_embd = self.MP(image_embd)
 
         # 2. Embed initial text prompt tokens
         prompt_token_embeds = self.decoder.token_embedding(

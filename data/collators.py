@@ -14,7 +14,7 @@ class BaseCollator(object):
         ]
         batch["labels"] = [
             torch.nn.functional.pad(
-                labels, (max_length - len(labels), 0), value=self.tokenizer.pad_token_id
+                labels, (max_length - len(labels), 0), value=-100
             )
             for labels in batch["labels"]
         ]
@@ -62,11 +62,15 @@ class BaseCollator(object):
             batch, max_len
         )  #  dictionaries in Python are mutable and passed by reference
 
+        # Extract image grids if available
+        image_grids = batch.get("image_grids", [])
+        
         return {
             "input_ids": torch.stack(batch["input_ids"]),
             "attention_mask": torch.stack(batch["attention_mask"]),
             "images": batch["images"],
             "labels": torch.stack(batch["labels"]),
+            "image_grids": image_grids,
         }
 
     def _discard_samples_that_are_too_long(self, batch, max_length):
@@ -126,7 +130,7 @@ class VQACollator(BaseCollator):  # Visual Question Answering Collator
 
     def _pad_batch(
         self, batch, max_length
-    ):  # Reimplementing to use -100 as the pad value for labels, so that it's ignored by the loss
+    ):  # Use -100 as the pad value for labels, so that it's ignored by the loss
         batch["input_ids"] = [
             torch.nn.functional.pad(
                 ids, (max_length - len(ids), 0), value=self.tokenizer.pad_token_id

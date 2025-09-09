@@ -113,6 +113,7 @@ class VQADataset(BaseDataset):  # Visual Question Answering Dataset
             "input_ids": input_ids,
             "attention_mask": attention_mask,
             "labels": labels,
+            "image_grids": splitted_image_counts,  # Pass grid dimensions
         }
 
     def _get_labels(self, input_ids, mask):
