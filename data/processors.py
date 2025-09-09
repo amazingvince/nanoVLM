@@ -1,7 +1,12 @@
 import torchvision.transforms as transforms
 from transformers import AutoTokenizer
+from torchvision.transforms import Normalize
 
 from data.custom_transforms import DynamicResize, SplitImage
+
+# ImageNet normalization constants
+IMAGENET_MEAN = (0.485, 0.456, 0.406)
+IMAGENET_STD = (0.229, 0.224, 0.225)
 
 TOKENIZERS_CACHE = {}
 
@@ -60,30 +65,63 @@ def get_tokenizer(name, extra_special_tokens=None, chat_template=None):
     return TOKENIZERS_CACHE[name]
 
 
-def get_image_processor(max_img_size, splitted_image_size, single_image_mode=False):
+def get_image_processor(
+    max_img_size,
+    splitted_image_size,
+    single_image_mode=False,
+    vit_patch_size=16,
+    pixel_shuffle_factor=2,
+    allow_upscale=True,
+):
     """
     Create image processor.
 
     Args:
         max_img_size: Maximum size for image dimension
         splitted_image_size: Target size for each image/patch
-        single_image_mode: If True, resize to splitted_image_size for DINOv3
+        single_image_mode: If True, use aspect-preserving resize for DINOv3
+        vit_patch_size: Patch size for vision transformer
+        pixel_shuffle_factor: Factor for pixel shuffle downsampling
+        allow_upscale: Whether to allow upscaling images
     """
     if single_image_mode:
-        # For DINOv3: resize entire image to 224x224, which will be processed into 14x14 patches
-        return transforms.Compose(
-            [
-                transforms.Resize((splitted_image_size, splitted_image_size)),
-                transforms.ToTensor(),
-                lambda x: (x, (1, 1)),  # Return tensor and grid count (1x1)
-            ]
-        )
+        # DINOv3 path: aspect-preserving resize with proper grid calculation
+        def process_single_image(pil_image):
+            # Create transform pipeline
+            transform = transforms.Compose(
+                [
+                    DynamicResize(
+                        patch_size=vit_patch_size,
+                        max_side_len=max_img_size,
+                        allow_upscale=allow_upscale,
+                    ),
+                    transforms.ToTensor(),
+                    Normalize(IMAGENET_MEAN, IMAGENET_STD),
+                ]
+            )
+            
+            # Apply transforms
+            x = transform(pil_image)  # C, H, W
+            _, H, W = x.shape
+            
+            # Calculate patch grid dimensions
+            Hp, Wp = H // vit_patch_size, W // vit_patch_size
+            
+            # Calculate final grid after pixel shuffle
+            s = pixel_shuffle_factor
+            assert Hp % s == 0 and Wp % s == 0, f"Patch grid (Hp={Hp}, Wp={Wp}) must be divisible by pixel_shuffle_factor={s}"
+            Gh, Gw = Hp // s, Wp // s
+            
+            return x, (Gh, Gw)
+        
+        return process_single_image
     else:
-        # For SigLIP: split into multiple 224x224 sub-images
+        # For SigLIP: split into multiple sub-images with normalization
         return transforms.Compose(
             [
                 DynamicResize(splitted_image_size, max_img_size),
                 transforms.ToTensor(),
+                Normalize(IMAGENET_MEAN, IMAGENET_STD),
                 SplitImage(splitted_image_size),
             ]
         )
