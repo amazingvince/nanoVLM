@@ -189,7 +189,7 @@ def get_original_small_config():
         mp_image_token_length=49,  # (14/2)^2 = 49
         mp_handle_special_tokens=False,
         # Override max_img_size to match input
-        max_img_size=224,
+        max_img_size=224,  # This preset uses smaller images for compatibility
     )
 
 
@@ -208,7 +208,7 @@ def get_dinov3_gemma_config():
         vit_layer_scale_init=1.0,
         vit_drop_path_rate=0.0,  # No dropout in pretrained model
         vit_rope_augment=True,  # Enable RoPE augmentations during training
-        vit_img_size=224,  # DINOv3 default image size
+        vit_img_size=1024,  # DINOv3 can handle high-res images with RoPE
         vit_patch_size=16,
         # Dimensions will be auto-detected from model
         # Gemma settings

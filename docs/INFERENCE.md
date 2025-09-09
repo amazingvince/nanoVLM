@@ -78,8 +78,9 @@ The image processor configuration varies by architecture:
 - Config saved in `preprocessor_config.json`
 
 ### DINOv3 Models  
-- Resizes images to 224x224
-- Single image mode (no splitting)
+- Aspect-preserving resize up to max_img_size
+- Single image mode with dynamic token grids based on actual image dimensions
+- Uses RoPE positional encoding for spatial awareness at any resolution
 - For DINOv3, we also attempt to save the HuggingFace processor when available
 
 ## Converting for Deployment

@@ -130,7 +130,7 @@ def save_tokenizer_and_processor(tokenizer, image_processor, save_directory, vlm
 
 def get_dataloaders(train_cfg, vlm_cfg):
     # Create datasets
-    # Use single image mode for DINOv3 (resize to 224x224 instead of splitting)
+    # Use single image mode for DINOv3 (aspect-preserving resize instead of splitting)
     single_image_mode = vlm_cfg.vit_architecture == "dinov3"
     image_processor = get_image_processor(
         vlm_cfg.max_img_size,
@@ -996,11 +996,12 @@ def main():
                 # Only "plus" models use SwiGLU
                 vlm_cfg.vit_use_swiglu = "plus" in args.dinov3_model
                 vlm_cfg.vit_use_rope = True  # DINOv3 uses RoPE
-                vlm_cfg.vit_img_size = 224  # DINOv3 default size
+                # Don't hardcode image size - DINOv3 can handle various sizes
+                # vit_img_size will be set from model config or defaults
             vlm_cfg.vit_cls_flag = True
             vlm_cfg.mp_handle_special_tokens = True
-            # For 224x224 images with patch_size=16, we get 14x14 patches
-            # Need pixel_shuffle_factor=2 (not 4) since 14 % 4 != 0
+            # DINOv3 can handle various image sizes with dynamic grids
+            # pixel_shuffle_factor will adapt based on actual patch grid
             vlm_cfg.mp_pixel_shuffle_factor = 2
             vlm_cfg.mp_image_token_length = 49  # (14/2)^2 = 7^2 = 49
 

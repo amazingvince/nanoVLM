@@ -69,10 +69,14 @@ def main():
 
     tokenizer = get_tokenizer(model.cfg.lm_tokenizer, model.cfg.vlm_extra_tokens)
 
-    # Use single image mode for DINOv3 (resize to 224x224 instead of splitting)
+    # Use single image mode for DINOv3 (aspect-preserving resize instead of splitting)
     single_image_mode = model.cfg.vit_architecture == "dinov3"
     image_processor = get_image_processor(
-        model.cfg.max_img_size, model.cfg.vit_img_size, single_image_mode
+        model.cfg.max_img_size,
+        model.cfg.vit_img_size,
+        single_image_mode=single_image_mode,
+        vit_patch_size=model.cfg.vit_patch_size,
+        pixel_shuffle_factor=model.cfg.mp_pixel_shuffle_factor,
     )
 
     img = Image.open(args.image).convert("RGB")
