@@ -66,7 +66,7 @@ class NanoVLMWrapper(lmms):
         images = []
         image_grids = []  # Store (Gh, Gw) tuples for DINOv3
         splitted_image_ratios = []  # Keep for backward compatibility
-        
+
         for visual in visual_list:
             image = None
             if isinstance(visual, Image.Image):
@@ -88,7 +88,7 @@ class NanoVLMWrapper(lmms):
             if isinstance(result, tuple) and len(result) == 2:
                 processed_image, grid_or_ratio = result
                 images.append(processed_image)
-                
+
                 # Check if it's a grid tuple (Gh, Gw) or a ratio list
                 if isinstance(grid_or_ratio, tuple) and len(grid_or_ratio) == 2:
                     # DINOv3 case - grid dimensions
@@ -232,8 +232,12 @@ class NanoVLMWrapper(lmms):
 
             # Generate with image grids if available (for DINOv3)
             # Filter out None grids and pass only if we have actual grids
-            valid_grids = [g for g in image_grids_list if g is not None] if image_grids_list else []
-            
+            valid_grids = (
+                [g for g in image_grids_list if g is not None]
+                if image_grids_list
+                else []
+            )
+
             generated_ids_batch = self.model.generate(
                 input_ids,
                 images,

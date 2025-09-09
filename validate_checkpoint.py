@@ -27,7 +27,7 @@ def generate_sample_outputs(model, dataset, tokenizer, checkpoint_path, device):
             # Get input tensors
             input_ids = sample["input_ids"].unsqueeze(0).to(device)
             images = sample["images"]
-            
+
             # Check for image_grids (for DINOv3 high-res support)
             image_grids = sample.get("image_grids", None)
             if image_grids is not None:
@@ -299,7 +299,7 @@ def main():
             images = batch["images"]
             attention_mask = batch["attention_mask"].to(device)
             labels = batch["labels"].to(device)
-            
+
             # Get image_grids if available (for DINOv3 high-res support)
             image_grids = batch.get("image_grids", None)
 
