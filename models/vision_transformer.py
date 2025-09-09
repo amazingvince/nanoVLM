@@ -239,10 +239,7 @@ class ViTMultiHeadAttention(nn.Module):
 
         # RoPE if needed
         if self.use_rope:
-            self.rope = DINOv3RoPEPositionEmbedding(
-                self.head_dim,
-                base=cfg.vit_rope_base if hasattr(cfg, "vit_rope_base") else 10000.0,
-            )
+            self.rope = DINOv3RoPEPositionEmbedding(cfg)
 
         # Use scaled dot product attention if available
         self.sdpa = hasattr(torch.nn.functional, "scaled_dot_product_attention")
