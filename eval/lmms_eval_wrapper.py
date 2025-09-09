@@ -64,7 +64,9 @@ class NanoVLMWrapper(lmms):
             return None
 
         images = []
-        splitted_image_ratios = []
+        image_grids = []  # Store (Gh, Gw) tuples for DINOv3
+        splitted_image_ratios = []  # Keep for backward compatibility
+        
         for visual in visual_list:
             image = None
             if isinstance(visual, Image.Image):
@@ -81,13 +83,29 @@ class NanoVLMWrapper(lmms):
                     f"Unsupported visual type: {type(visual)}. Expected PIL Image, path string, or numpy array."
                 )
 
-            # Process image
-            processed_images, splitted_image_ratio = self.image_processor(image)
-            images.append(processed_images)
-            splitted_image_ratios.append(splitted_image_ratio)
+            # Process image - returns (tensor, (Gh, Gw)) for DINOv3 or (tensor, ratio) for others
+            result = self.image_processor(image)
+            if isinstance(result, tuple) and len(result) == 2:
+                processed_image, grid_or_ratio = result
+                images.append(processed_image)
+                
+                # Check if it's a grid tuple (Gh, Gw) or a ratio list
+                if isinstance(grid_or_ratio, tuple) and len(grid_or_ratio) == 2:
+                    # DINOv3 case - grid dimensions
+                    image_grids.append(grid_or_ratio)
+                    splitted_image_ratios.append([1, 1])  # Default for compatibility
+                else:
+                    # Old case - splitted ratio
+                    splitted_image_ratios.append(grid_or_ratio)
+                    image_grids.append(None)  # No grid info
+            else:
+                # Fallback for unexpected format
+                images.append(result)
+                splitted_image_ratios.append([1, 1])
+                image_grids.append(None)
 
         if images:
-            return images, splitted_image_ratios
+            return images, splitted_image_ratios, image_grids
         return None
 
     def loglikelihood(self, requests: List[Instance]) -> List[Tuple[float, bool]]:
@@ -129,9 +147,11 @@ class NanoVLMWrapper(lmms):
                 doc_to_visual[0](self.task_dict[task][split][ids])
                 for ids, task, split in zip(doc_id, task, split)
             ]
-            images, splitted_image_ratio = self._prepare_visual_input(
-                self.flatten(visuals)
-            )
+            result = self._prepare_visual_input(self.flatten(visuals))
+            if result is not None:
+                images, splitted_image_ratio, image_grids_list = result
+            else:
+                images, splitted_image_ratio, image_grids_list = None, [], []
 
             messages = []
             splitted_image_idx = 0
@@ -140,11 +160,30 @@ class NanoVLMWrapper(lmms):
                 image_count = len(visuals[i])
                 image_string = ""
                 for _ in range(image_count):
-                    image_string += get_image_string(
-                        self.tokenizer,
-                        [splitted_image_ratio[splitted_image_idx]],
-                        self.model.cfg.mp_image_token_length,
-                    )
+                    # Use grid info if available (DINOv3), otherwise use ratio
+                    if image_grids_list and splitted_image_idx < len(image_grids_list):
+                        grid_info = image_grids_list[splitted_image_idx]
+                        if grid_info is not None:
+                            # DINOv3 with dynamic tokens - token count determined by actual grid
+                            image_string += get_image_string(
+                                self.tokenizer,
+                                [1, 1],  # Dummy ratio, actual tokens handled by grid
+                                self.model.cfg.mp_image_token_length,
+                            )
+                        else:
+                            # Traditional splitted ratio approach
+                            image_string += get_image_string(
+                                self.tokenizer,
+                                [splitted_image_ratio[splitted_image_idx]],
+                                self.model.cfg.mp_image_token_length,
+                            )
+                    else:
+                        # Fallback to ratio
+                        image_string += get_image_string(
+                            self.tokenizer,
+                            [splitted_image_ratio[splitted_image_idx]],
+                            self.model.cfg.mp_image_token_length,
+                        )
                     splitted_image_idx += 1
 
                 prompt_content = image_string + current_context_str
@@ -191,7 +230,10 @@ class NanoVLMWrapper(lmms):
             gen_temperature = temperature if not greedy else None
             gen_top_p = top_p if not greedy else None
 
-            # Generate
+            # Generate with image grids if available (for DINOv3)
+            # Filter out None grids and pass only if we have actual grids
+            valid_grids = [g for g in image_grids_list if g is not None] if image_grids_list else []
+            
             generated_ids_batch = self.model.generate(
                 input_ids,
                 images,
@@ -200,6 +242,7 @@ class NanoVLMWrapper(lmms):
                 greedy=greedy,
                 temperature=gen_temperature,
                 top_p=gen_top_p,
+                image_grids=valid_grids if valid_grids else None,
             )
 
             # Decode generated sequences

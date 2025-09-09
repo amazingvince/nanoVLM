@@ -27,6 +27,12 @@ def generate_sample_outputs(model, dataset, tokenizer, checkpoint_path, device):
             # Get input tensors
             input_ids = sample["input_ids"].unsqueeze(0).to(device)
             images = sample["images"]
+            
+            # Check for image_grids (for DINOv3 high-res support)
+            image_grids = sample.get("image_grids", None)
+            if image_grids is not None:
+                # Convert single grid to list for batch processing
+                image_grids = [image_grids]
 
             # Handle images properly - convert list to tensor if needed
             if isinstance(images, list):
@@ -77,6 +83,7 @@ def generate_sample_outputs(model, dataset, tokenizer, checkpoint_path, device):
                         max_new_tokens=30,
                         temperature=0.7,
                         top_p=0.9,
+                        image_grids=image_grids,  # Pass grids for DINOv3
                     )
 
                 # Decode generated text
@@ -292,6 +299,9 @@ def main():
             images = batch["images"]
             attention_mask = batch["attention_mask"].to(device)
             labels = batch["labels"].to(device)
+            
+            # Get image_grids if available (for DINOv3 high-res support)
+            image_grids = batch.get("image_grids", None)
 
             try:
                 logits, loss = model(
@@ -299,6 +309,7 @@ def main():
                     images,
                     attention_mask=attention_mask,
                     targets=labels,
+                    image_grids=image_grids,  # Pass grids for DINOv3
                 )
 
                 if loss is not None:
