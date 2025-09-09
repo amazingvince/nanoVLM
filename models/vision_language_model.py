@@ -90,28 +90,30 @@ class VisionLanguageModel(nn.Module):
             else:
                 if isinstance(images[0], list):
                     images = [img for sublist in images for img in sublist]
-                
+
                 # For DINOv3: Pad images to the same size before stacking
                 # When we have variable-sized images due to aspect-preserving resize
                 if images[0].dim() == 3:  # Individual images [C, H, W]
                     # Find max dimensions in the batch
                     max_h = max(img.shape[1] for img in images)
                     max_w = max(img.shape[2] for img in images)
-                    
+
                     # Store original sizes for proper grid handling
                     original_sizes = [(img.shape[1], img.shape[2]) for img in images]
-                    
+
                     # Pad each image to max dimensions (pad on right and bottom)
                     padded_images = []
                     for img in images:
                         pad_h = max_h - img.shape[1]
                         pad_w = max_w - img.shape[2]
                         # Pad format: (left, right, top, bottom) with zero padding
-                        padded = F.pad(img, (0, pad_w, 0, pad_h), mode='constant', value=0)
+                        padded = F.pad(
+                            img, (0, pad_w, 0, pad_h), mode="constant", value=0
+                        )
                         padded_images.append(padded)
-                    
+
                     images = torch.stack(padded_images, dim=0).to(input_ids.device)
-                    
+
                     # Store original sizes for later use in modality projector
                     # This allows us to mask out padded tokens if needed
                     self._batch_original_sizes = original_sizes
@@ -125,24 +127,23 @@ class VisionLanguageModel(nn.Module):
         if image_grids is not None and len(image_grids) > 0:
             # Process each image separately with its grid
             projected = []
-            
+
             # When images are padded to same size, we process them together
             # but need to handle grids individually based on original sizes
-            if hasattr(self, '_batch_original_sizes'):
+            if hasattr(self, "_batch_original_sizes"):
                 # Images were padded - use original sizes to compute correct grids
                 patch_size = self.cfg.vit_patch_size
-                ps_factor = self.cfg.mp_pixel_shuffle_factor
-                
+
                 for i, (orig_h, orig_w) in enumerate(self._batch_original_sizes):
                     # Calculate actual patch grid for original image (before padding)
                     Hp = orig_h // patch_size
                     Wp = orig_w // patch_size
-                    
+
                     # Pass original grid dimensions to modality projector
                     # This ensures we only process real image tokens, not padding
                     proj_embd = self.MP(image_embd[i : i + 1], gh=Hp, gw=Wp)
                     projected.append(proj_embd)
-                
+
                 # Clean up
                 del self._batch_original_sizes
             else:

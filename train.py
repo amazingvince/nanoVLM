@@ -1054,7 +1054,10 @@ def main():
             vlm_cfg.lm_n_heads = 15
             vlm_cfg.lm_n_kv_heads = 5
             vlm_cfg.lm_n_blocks = 32
-        elif args.language_model == "smollm-135m" or args.language_model == "HuggingFaceTB/SmolLM2-135M":
+        elif (
+            args.language_model == "smollm-135m"
+            or args.language_model == "HuggingFaceTB/SmolLM2-135M"
+        ):
             # Smaller SmolLM2-135M
             vlm_cfg.lm_architecture = "llama"
             vlm_cfg.lm_model_type = "HuggingFaceTB/SmolLM2-135M"
@@ -1064,7 +1067,10 @@ def main():
             vlm_cfg.lm_n_heads = 9
             vlm_cfg.lm_n_kv_heads = 3
             vlm_cfg.lm_n_blocks = 30
-        elif args.language_model.startswith("HuggingFaceTB/") or "/" in args.language_model:
+        elif (
+            args.language_model.startswith("HuggingFaceTB/")
+            or "/" in args.language_model
+        ):
             # Direct HuggingFace model ID
             vlm_cfg.lm_architecture = "llama"  # Assume LLaMA architecture for now
             vlm_cfg.lm_model_type = args.language_model
