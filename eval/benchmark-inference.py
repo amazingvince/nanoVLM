@@ -22,8 +22,13 @@ if __name__ == "__main__":
     model.eval()
 
     tokenizer = get_tokenizer(model.cfg.lm_tokenizer, model.cfg.vlm_extra_tokens)
+    single_image_mode = model.cfg.vit_architecture == "dinov3"
     image_processor = get_image_processor(
-        model.cfg.max_img_size, model.cfg.vit_img_size
+        model.cfg.max_img_size,
+        model.cfg.vit_img_size,
+        single_image_mode=single_image_mode,
+        vit_patch_size=model.cfg.vit_patch_size,
+        pixel_shuffle_factor=model.cfg.mp_pixel_shuffle_factor,
     )
 
     text = "What is this?"
@@ -33,7 +38,12 @@ if __name__ == "__main__":
 
     image_path = "assets/image.png"
     image = Image.open(image_path)
-    image = image_processor(image)
+    processed = image_processor(image)
+    # Handle tuple return from processor (image, grid)
+    if isinstance(processed, tuple):
+        image, grid = processed
+    else:
+        image = processed
     image = image.unsqueeze(0).to(device)
 
     time = benchmark.Timer(

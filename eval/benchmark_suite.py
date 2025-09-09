@@ -47,7 +47,14 @@ def benchmark_vlm(
     )
     model = VisionLanguageModel(cfg, load_backbone=True).to(device).eval()
     tokenizer = get_tokenizer(cfg.lm_tokenizer, cfg.vlm_extra_tokens)
-    image_processor = get_image_processor(cfg.max_img_size, cfg.vit_img_size)
+    single_image_mode = cfg.vit_architecture == "dinov3"
+    image_processor = get_image_processor(
+        cfg.max_img_size,
+        cfg.vit_img_size,
+        single_image_mode=single_image_mode,
+        vit_patch_size=cfg.vit_patch_size,
+        pixel_shuffle_factor=cfg.mp_pixel_shuffle_factor,
+    )
 
     initial_vram_model_mb = 0
     if device.type == "cuda":
@@ -61,7 +68,13 @@ def benchmark_vlm(
     input_ids = encoded_batch["input_ids"].to(device)
     attention_mask = encoded_batch["attention_mask"].to(device)
     pil_image = Image.open(image_path)
-    image_tensor = image_processor(pil_image).unsqueeze(0).to(device)
+    processed = image_processor(pil_image)
+    # Handle tuple return from processor (image, grid)
+    if isinstance(processed, tuple):
+        image_tensor, grid = processed
+    else:
+        image_tensor = processed
+    image_tensor = image_tensor.unsqueeze(0).to(device)
 
     # Warmup
     for _ in range(warmup_runs):

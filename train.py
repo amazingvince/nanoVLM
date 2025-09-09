@@ -133,7 +133,11 @@ def get_dataloaders(train_cfg, vlm_cfg):
     # Use single image mode for DINOv3 (resize to 224x224 instead of splitting)
     single_image_mode = vlm_cfg.vit_architecture == "dinov3"
     image_processor = get_image_processor(
-        vlm_cfg.max_img_size, vlm_cfg.vit_img_size, single_image_mode
+        vlm_cfg.max_img_size,
+        vlm_cfg.vit_img_size,
+        single_image_mode=single_image_mode,
+        vit_patch_size=vlm_cfg.vit_patch_size,
+        pixel_shuffle_factor=vlm_cfg.mp_pixel_shuffle_factor,
     )
     tokenizer = get_tokenizer(
         vlm_cfg.lm_tokenizer, vlm_cfg.vlm_extra_tokens, vlm_cfg.lm_chat_template

@@ -57,13 +57,19 @@ def load_nanovlm_model(checkpoint_path):
         image_processor = get_image_processor(
             proc_config["max_img_size"],
             proc_config["vit_img_size"],
-            proc_config["single_image_mode"],
+            single_image_mode=proc_config["single_image_mode"],
+            vit_patch_size=proc_config.get("vit_patch_size", 16),
+            pixel_shuffle_factor=proc_config.get("mp_pixel_shuffle_factor", 2),
         )
     else:
         # Create from model config
         single_image_mode = model.cfg.vit_architecture == "dinov3"
         image_processor = get_image_processor(
-            model.cfg.max_img_size, model.cfg.vit_img_size, single_image_mode
+            model.cfg.max_img_size,
+            model.cfg.vit_img_size,
+            single_image_mode=single_image_mode,
+            vit_patch_size=model.cfg.vit_patch_size,
+            pixel_shuffle_factor=model.cfg.mp_pixel_shuffle_factor,
         )
 
     return model, tokenizer, image_processor, device
