@@ -13,8 +13,7 @@ import PIL.PngImagePlugin
 import torch
 import torch.distributed as dist
 import torch.optim as optim
-from datasets import (concatenate_datasets, get_dataset_config_names,
-                      load_dataset)
+from datasets import concatenate_datasets, get_dataset_config_names, load_dataset
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 
@@ -208,7 +207,7 @@ def get_dataloaders(train_cfg, vlm_cfg):
     # Skip ConstantLengthDataset for DINOv3 (single_image_mode)
     # as it doesn't preserve image_grids needed for dynamic tokens
     # Also apply max sequence length filter for both modes
-    max_seq_len = vlm_cfg.lm_max_position_embeddings
+    max_seq_len = vlm_cfg.lm_max_position_embeddings - 100  # Add buffer for safety
 
     def filter_by_length(dataset):
         filtered_indices = []
@@ -216,6 +215,13 @@ def get_dataloaders(train_cfg, vlm_cfg):
             item = dataset[i]
             if len(item["input_ids"]) <= max_seq_len:
                 filtered_indices.append(i)
+            else:
+                print(
+                    f"Filtering out sample {i} with length {len(item['input_ids'])} > {max_seq_len}"
+                )
+        print(
+            f"Filtered {len(dataset) - len(filtered_indices)} samples exceeding max length {max_seq_len}"
+        )
         return torch.utils.data.Subset(dataset, filtered_indices)
 
     train_dataset = filter_by_length(train_dataset)
