@@ -103,6 +103,12 @@ class VQADataset(BaseDataset):  # Visual Question Answering Dataset
         # Now process the images
         processed_images, splitted_image_counts = self._process_images(images_data)
 
+        # Extract GhGw from the grid dict for DINOv3
+        if len(splitted_image_counts) > 0 and isinstance(
+            splitted_image_counts[0], dict
+        ):
+            splitted_image_counts = [grid["GhGw"] for grid in splitted_image_counts]
+
         messages = self._get_messages(item, splitted_image_counts)
 
         input_ids, mask, attention_mask = self._prepare_inputs_and_loss_mask(messages)
