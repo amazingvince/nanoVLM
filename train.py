@@ -207,7 +207,7 @@ def get_dataloaders(train_cfg, vlm_cfg):
     # Skip ConstantLengthDataset for DINOv3 (single_image_mode)
     # as it doesn't preserve image_grids needed for dynamic tokens
     # Also apply max sequence length filter for both modes
-    max_seq_len = vlm_cfg.lm_max_position_embeddings - 100  # Add buffer for safety
+    max_seq_len = vlm_cfg.lm_max_position_embeddings // 2  # Reduce to 4096 for safety
 
     def filter_by_length(dataset):
         filtered_indices = []
