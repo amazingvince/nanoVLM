@@ -1,5 +1,6 @@
 import argparse
 import contextlib
+import logging
 import math
 import os
 import random
@@ -13,13 +14,17 @@ import PIL.PngImagePlugin
 import torch
 import torch.distributed as dist
 import torch.optim as optim
-from datasets import concatenate_datasets, get_dataset_config_names, load_dataset
+from datasets import (concatenate_datasets, get_dataset_config_names,
+                      load_dataset)
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 
 import models.config as config
 import wandb
 from data.advanced_datasets import ConstantLengthDataset
+
+# Suppress transformers warnings about sequence length
+logging.getLogger('transformers').setLevel(logging.ERROR)
 from data.collators import VQACollator
 from data.data_utils import synchronized_dataloader_step
 from data.datasets import VQADataset

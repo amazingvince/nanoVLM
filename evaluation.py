@@ -34,7 +34,8 @@ except ImportError as e:
     print(f"Original error: {e}")
     sys.exit(1)
 
-from eval.lmms_eval_wrapper import NanoVLMWrapper  # noqa: E402 - Must be after lmms_eval check
+from eval.lmms_eval_wrapper import \
+    NanoVLMWrapper  # noqa: E402 - Must be after lmms_eval check
 
 
 def _int_or_none_list_arg_type(
