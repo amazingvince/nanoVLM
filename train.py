@@ -20,6 +20,7 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 
 # Suppress transformers warnings about sequence length
+os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
 logging.getLogger('transformers').setLevel(logging.ERROR)
 
 import models.config as config
