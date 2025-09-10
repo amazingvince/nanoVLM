@@ -40,16 +40,21 @@ class BaseCollator(object):
                 # During training, discard samples that are too long
                 batch = self._discard_samples_that_are_too_long(batch, max_length)
 
-        # If all samples were filtered out during training, raise an error
-        # During validation, this shouldn't happen since we truncate instead
+        # If all samples were filtered out, handle gracefully
         if not batch["input_ids"]:
             if self.is_validation:
-                # This shouldn't happen with truncation, but handle gracefully
                 return None
             else:
-                raise ValueError(
-                    "All samples in batch were filtered out. This shouldn't happen in VLM training."
-                )
+                # For training, return a dummy batch with valid grid dimensions
+                dummy_tensor = torch.zeros(1, 1, dtype=torch.long)
+                dummy_image = torch.zeros(1, 3, 224, 224)
+                return {
+                    "input_ids": dummy_tensor,
+                    "attention_mask": dummy_tensor,
+                    "images": [dummy_image],
+                    "labels": dummy_tensor,
+                    "image_grids": [(2, 2)],  # Must be divisible by pixel_shuffle_factor=2
+                }
 
         # Pad samples to max length
         if max_length is not None:
@@ -70,24 +75,29 @@ class BaseCollator(object):
 
     def _discard_samples_that_are_too_long(self, batch, max_length):
         filtered = [
-            (ids, label, attn, img)
-            for ids, label, attn, img in zip(
+            (ids, label, attn, img, grid)
+            for ids, label, attn, img, grid in zip(
                 batch["input_ids"],
                 batch["labels"],
                 batch["attention_mask"],
                 batch["images"],
+                batch.get("image_grids", []),
             )
             if len(ids) <= max_length
         ]
         if not filtered:
             # Return empty dict, not tuple
             return {"input_ids": [], "labels": [], "attention_mask": [], "images": []}
-        batch_token_ids, batch_labels, batch_attentions, batch_images = zip(*filtered)
+        if filtered:
+            batch_token_ids, batch_labels, batch_attentions, batch_images, batch_grids = zip(*filtered)
+        else:
+            batch_token_ids, batch_labels, batch_attentions, batch_images, batch_grids = [], [], [], [], []
         return {
             "input_ids": list(batch_token_ids),
             "labels": list(batch_labels),
             "attention_mask": list(batch_attentions),
             "images": list(batch_images),
+            "image_grids": list(batch_grids),
         }
 
     def _truncate_samples_that_are_too_long(self, batch, max_length):

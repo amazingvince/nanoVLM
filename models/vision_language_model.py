@@ -122,7 +122,6 @@ class VisionLanguageModel(nn.Module):
 
         # Process vision features
         image_embd = self.vision_encoder(images)
-
         # Apply modality projector with grid dimensions if available
         if image_grids is not None and len(image_grids) > 0:
             # Process each image separately with its grid
@@ -148,7 +147,6 @@ class VisionLanguageModel(nn.Module):
                     img_features = image_embd[i : i + 1]
 
                     # Pass original grid dimensions to modality projector
-                    # MP will extract only Hp*Wp tokens and ignore padding
                     proj_embd = self.MP(img_features, gh=Hp, gw=Wp)
                     projected.append(proj_embd)
 
@@ -169,14 +167,21 @@ class VisionLanguageModel(nn.Module):
                             seq_len -= self.cfg.vit_num_registers
                         Hp = Wp = int(seq_len**0.5)
 
-                    # Pass grid dimensions to modality projector
-                    proj_embd = self.MP(image_embd[i : i + 1], gh=Hp, gw=Wp)
+                    # Pass grid dimensions directly from image_grids
+                    proj_embd = self.MP(image_embd[i : i + 1], gh=gh, gw=gw)
                     projected.append(proj_embd)
 
-            if projected:
-                image_embd = torch.cat(projected, dim=0)
-            else:
-                image_embd = self.MP(image_embd)
+            # Pad projected embeddings to same size before concatenation
+            max_seq_len = max(p.shape[1] for p in projected)
+            padded_projected = []
+            for p in projected:
+                if p.shape[1] < max_seq_len:
+                    pad_size = max_seq_len - p.shape[1]
+                    padded = F.pad(p, (0, 0, 0, pad_size), "constant", 0)
+                    padded_projected.append(padded)
+                else:
+                    padded_projected.append(p)
+            image_embd = torch.cat(padded_projected, dim=0)
         else:
             # Fallback to original square processing
             image_embd = self.MP(image_embd)
@@ -239,6 +244,7 @@ class VisionLanguageModel(nn.Module):
         # 1. Process image
         image_embd = self.vision_encoder(images)  # [B, T_img_feat, D_model]
 
+        print(f"DEBUG: image_grids type: {type(image_grids)}, len: {len(image_grids) if image_grids is not None else 'N/A'}")
         # Apply modality projector with grid dimensions if available
         if image_grids is not None and len(image_grids) > 0:
             # Process each image separately with its grid
@@ -260,10 +266,17 @@ class VisionLanguageModel(nn.Module):
                 proj_embd = self.MP(image_embd[i : i + 1], gh=Hp, gw=Wp)
                 projected.append(proj_embd)
 
-            if projected:
-                image_embd = torch.cat(projected, dim=0)
-            else:
-                image_embd = self.MP(image_embd)
+            # Pad projected embeddings to same size before concatenation
+            max_seq_len = max(p.shape[1] for p in projected)
+            padded_projected = []
+            for p in projected:
+                if p.shape[1] < max_seq_len:
+                    pad_size = max_seq_len - p.shape[1]
+                    padded = F.pad(p, (0, 0, 0, pad_size), "constant", 0)
+                    padded_projected.append(padded)
+                else:
+                    padded_projected.append(p)
+            image_embd = torch.cat(padded_projected, dim=0)
         else:
             # Fallback to original square processing
             image_embd = self.MP(image_embd)

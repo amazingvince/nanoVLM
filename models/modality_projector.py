@@ -95,25 +95,22 @@ class ModalityProjector(nn.Module):
     def forward(self, x, gh=None, gw=None):
         bsz, seq_len, embed_dim = x.size()
 
-        # Remove special tokens if needed (for DINOv3)
+        # Remove special tokens if needed
         if self.handle_special_tokens:
-            # Calculate starting index for patch tokens
             start_idx = 0
             if self.has_cls:
-                start_idx += 1  # Skip CLS token
+                start_idx += 1
             if self.num_registers > 0:
-                start_idx += self.num_registers  # Skip register tokens
-
-            # Keep only patch tokens
+                start_idx += self.num_registers
             x = x[:, start_idx:, :]
 
-        # Apply pixel shuffle (2D for rectangular grids if dimensions provided)
+        # Apply pixel shuffle
         if gh is not None and gw is not None:
+            # Use 2D pixel shuffle for rectangular grids (DINOv3)
             x = self.pixel_shuffle_2d(x, gh, gw)
         else:
+            # Use original square pixel shuffle (SigLIP)
             x = self.pixel_shuffle(x)
 
-        # Project to LM dimension
         x = self.proj(x)
-
         return x
