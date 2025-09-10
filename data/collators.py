@@ -53,7 +53,9 @@ class BaseCollator(object):
                     "attention_mask": dummy_tensor,
                     "images": [dummy_image],
                     "labels": dummy_tensor,
-                    "image_grids": [(2, 2)],  # Must be divisible by pixel_shuffle_factor=2
+                    "image_grids": [
+                        (2, 2)
+                    ],  # Must be divisible by pixel_shuffle_factor=2
                 }
 
         # Pad samples to max length
@@ -89,9 +91,21 @@ class BaseCollator(object):
             # Return empty dict, not tuple
             return {"input_ids": [], "labels": [], "attention_mask": [], "images": []}
         if filtered:
-            batch_token_ids, batch_labels, batch_attentions, batch_images, batch_grids = zip(*filtered)
+            (
+                batch_token_ids,
+                batch_labels,
+                batch_attentions,
+                batch_images,
+                batch_grids,
+            ) = zip(*filtered)
         else:
-            batch_token_ids, batch_labels, batch_attentions, batch_images, batch_grids = [], [], [], [], []
+            (
+                batch_token_ids,
+                batch_labels,
+                batch_attentions,
+                batch_images,
+                batch_grids,
+            ) = [], [], [], [], []
         return {
             "input_ids": list(batch_token_ids),
             "labels": list(batch_labels),

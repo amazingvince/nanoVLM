@@ -244,7 +244,9 @@ class VisionLanguageModel(nn.Module):
         # 1. Process image
         image_embd = self.vision_encoder(images)  # [B, T_img_feat, D_model]
 
-        print(f"DEBUG: image_grids type: {type(image_grids)}, len: {len(image_grids) if image_grids is not None else 'N/A'}")
+        print(
+            f"DEBUG: image_grids type: {type(image_grids)}, len: {len(image_grids) if image_grids is not None else 'N/A'}"
+        )
         # Apply modality projector with grid dimensions if available
         if image_grids is not None and len(image_grids) > 0:
             # Process each image separately with its grid
