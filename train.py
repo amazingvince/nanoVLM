@@ -19,12 +19,12 @@ from datasets import (concatenate_datasets, get_dataset_config_names,
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 
+# Suppress transformers warnings about sequence length
+logging.getLogger('transformers').setLevel(logging.ERROR)
+
 import models.config as config
 import wandb
 from data.advanced_datasets import ConstantLengthDataset
-
-# Suppress transformers warnings about sequence length
-logging.getLogger('transformers').setLevel(logging.ERROR)
 from data.collators import VQACollator
 from data.data_utils import synchronized_dataloader_step
 from data.datasets import VQADataset
