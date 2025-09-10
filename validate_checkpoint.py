@@ -213,7 +213,8 @@ def main():
 
     # Load the SAME dataset as train.py uses
     print("\nLoading the_cauldron dataset (same as training)...")
-    from datasets import concatenate_datasets, get_dataset_config_names, load_dataset
+    from datasets import (concatenate_datasets, get_dataset_config_names,
+                          load_dataset)
 
     # Load ALL dataset configs just like train.py
     combined_train_data = []

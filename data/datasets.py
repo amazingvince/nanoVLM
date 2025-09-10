@@ -123,8 +123,17 @@ class VQADataset(BaseDataset):  # Visual Question Answering Dataset
         }
 
     def _get_labels(self, input_ids, mask):
+        # Ensure mask length matches input_ids length
+        if len(mask) != len(input_ids):
+            # Pad or truncate mask to match input_ids length
+            if len(mask) < len(input_ids):
+                mask = torch.cat([mask, torch.zeros(len(input_ids) - len(mask), dtype=torch.bool, device=mask.device)])
+            else:
+                mask = mask[:len(input_ids)]
+        
         labels = input_ids.clone().masked_fill(~mask, -100)
         labels = labels.roll(-1)  # Shift labels for causal LM
-        labels[-1] = -100  # Last token has no target
+        if len(labels) > 0:
+            labels[-1] = -100  # Last token has no target
 
         return labels
