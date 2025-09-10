@@ -135,7 +135,7 @@ class TrainConfig:
     save_checkpoint_steps: int = (
         None  # Save checkpoint every N steps (in addition to best model)
     )
-    console_log_interval: int = 100  # Print loss to console every N steps
+    console_log_interval: int = 25  # Print train metrics to console every N steps
     max_training_steps: int = 5000
     max_images_per_example: int = 4
     max_images_per_knapsack: int = 18
