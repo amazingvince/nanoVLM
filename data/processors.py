@@ -115,7 +115,7 @@ def get_image_processor(
                 f"Patch grid (Hp={Hp}, Wp={Wp}) must be divisible by pixel_shuffle_factor={s}"
             )
             Gh, Gw = Hp // s, Wp // s
-            return x, (Gh, Gw)
+            return x, {"HpWp": (Hp, Wp), "GhGw": (Gh, Gw)}
 
         return process_single_image
     else:

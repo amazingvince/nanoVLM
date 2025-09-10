@@ -78,14 +78,21 @@ def benchmark_vlm(
 
     # Warmup
     for _ in range(warmup_runs):
-        # simplified warmup same as original...
+        # Warmup with proper grid handling for DINOv3
         image_embd = model.vision_encoder(image_tensor)
-        image_embd = model.MP(image_embd)
+        if "grid" in locals():
+            # For DINOv3, handle grids
+            Hp, Wp = grid["HpWp"]
+            proj_embd = model.MP(image_embd, gh=Hp, gw=Wp)
+        else:
+            # For SigLIP, use original processing
+            proj_embd = model.MP(image_embd)
+
         token_embd = model.decoder.token_embedding(input_ids)
-        combined = torch.cat((image_embd, token_embd), dim=1)
+        combined = torch.cat((proj_embd, token_embd), dim=1)
         mask = None
         if attention_mask is not None:
-            img_len = image_embd.size(1)
+            img_len = proj_embd.size(1)
             mask = torch.cat(
                 (torch.ones((1, img_len), device=device), attention_mask), dim=1
             )
@@ -111,10 +118,16 @@ def benchmark_vlm(
             torch.cuda.synchronize()
             torch.cuda.reset_peak_memory_stats(device)
 
-        # Vision encode
+        # Vision encode with proper grid handling
         start = time.perf_counter()
         img_emb = model.vision_encoder(image_tensor)
-        img_emb = model.MP(img_emb)
+        if "grid" in locals():
+            # For DINOv3, handle grids
+            Hp, Wp = grid["HpWp"]
+            proj_emb = model.MP(img_emb, gh=Hp, gw=Wp)
+        else:
+            # For SigLIP, use original processing
+            proj_emb = model.MP(img_emb)
         if device.type == "cuda":
             torch.cuda.synchronize()
         ve = time.perf_counter() - start
@@ -122,11 +135,12 @@ def benchmark_vlm(
 
         # LLM first token
         token_embd = model.decoder.token_embedding(input_ids)
-        combined = torch.cat((img_emb, token_embd), dim=1)
+        combined = torch.cat((proj_emb, token_embd), dim=1)
         mask = None
         if attention_mask is not None:
             mask = torch.cat(
-                (torch.ones((1, img_emb.size(1)), device=device), attention_mask), dim=1
+                (torch.ones((1, proj_emb.size(1)), device=device), attention_mask),
+                dim=1,
             )
         if device.type == "cuda":
             torch.cuda.synchronize()

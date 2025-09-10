@@ -153,22 +153,10 @@ class VisionLanguageModel(nn.Module):
                 # Clean up
                 del self._batch_original_sizes
             else:
-                # Original path for when images aren't padded
-                for i, (gh, gw) in enumerate(image_grids):
-                    # Get patch grid dimensions from vision encoder if stored
-                    if hasattr(self.vision_encoder.patch_embedding, "_last_hw"):
-                        Hp, Wp = self.vision_encoder.patch_embedding._last_hw
-                    else:
-                        # Fallback: compute from sequence length
-                        seq_len = image_embd[i : i + 1].shape[1]
-                        if self.cfg.vit_cls_flag:
-                            seq_len -= 1
-                        if hasattr(self.cfg, "vit_num_registers"):
-                            seq_len -= self.cfg.vit_num_registers
-                        Hp = Wp = int(seq_len**0.5)
-
-                    # Pass grid dimensions directly from image_grids
-                    proj_embd = self.MP(image_embd[i : i + 1], gh=gh, gw=gw)
+                s = self.cfg.mp_pixel_shuffle_factor
+                for i, (g_h, g_w) in enumerate(image_grids):
+                    Hp, Wp = g_h * s, g_w * s
+                    proj_embd = self.MP(image_embd[i : i + 1], gh=Hp, gw=Wp)
                     projected.append(proj_embd)
 
             # Pad projected embeddings to same size before concatenation

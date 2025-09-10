@@ -13,8 +13,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 
-def generate_tokens(tokens, image):
-    return model.generate(tokens, image, max_new_tokens=1000)
+def generate_tokens(tokens, image, image_grids=None):
+    return model.generate(tokens, image, image_grids=image_grids, max_new_tokens=1000)
 
 
 if __name__ == "__main__":
@@ -46,10 +46,18 @@ if __name__ == "__main__":
         image = processed
     image = image.unsqueeze(0).to(device)
 
+    # Pass image_grids if available
+    timer_globals = {"tokens": tokens, "image": image}
+    stmt = "generate_tokens(tokens, image"
+    if "grid" in locals():
+        timer_globals["image_grids"] = [grid]
+        stmt += ", image_grids=image_grids"
+    stmt += ")"
+
     time = benchmark.Timer(
-        stmt="generate_tokens(tokens, image)",
+        stmt=stmt,
         setup="from __main__ import generate_tokens",
-        globals={"tokens": tokens, "image": image},
+        globals=timer_globals,
         num_threads=torch.get_num_threads(),
     )
 
