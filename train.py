@@ -206,6 +206,19 @@ def get_dataloaders(train_cfg, vlm_cfg):
 
     # Skip ConstantLengthDataset for DINOv3 (single_image_mode)
     # as it doesn't preserve image_grids needed for dynamic tokens
+    # Also apply max sequence length filter for both modes
+    max_seq_len = vlm_cfg.lm_max_position_embeddings
+
+    def filter_by_length(dataset):
+        filtered_indices = []
+        for i in range(len(dataset)):
+            item = dataset[i]
+            if len(item["input_ids"]) <= max_seq_len:
+                filtered_indices.append(i)
+        return torch.utils.data.Subset(dataset, filtered_indices)
+
+    train_dataset = filter_by_length(train_dataset)
+
     if not single_image_mode:
         train_dataset = ConstantLengthDataset(
             train_dataset,
@@ -223,6 +236,7 @@ def get_dataloaders(train_cfg, vlm_cfg):
         image_processor,
         vlm_cfg.mp_image_token_length,
     )
+    val_dataset = filter_by_length(val_dataset)
 
     # Create separate collators for training and validation
     train_collator = VQACollator(tokenizer, vlm_cfg.lm_max_length, is_validation=False)
