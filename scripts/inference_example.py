@@ -96,7 +96,13 @@ def generate_response(model, tokenizer, image_processor, image_path, prompt, dev
     images = images.to(device)
 
     # Calculate number of image tokens
-    vit_patch_size = grid_size[0] * grid_size[1]
+    if isinstance(grid_size, dict):
+        # DINOv3 format: {'HpWp': (Hp, Wp), 'GhGw': (Gh, Gw)}
+        Gh, Gw = grid_size["GhGw"]
+        vit_patch_size = Gh * Gw
+    else:
+        # SigLIP format: tuple (rows, cols)
+        vit_patch_size = grid_size[0] * grid_size[1]
 
     # Get image token from tokenizer or model config
     if hasattr(tokenizer, "image_token"):
@@ -158,13 +164,15 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "checkpoint_path",
+        "--checkpoint_path",
         type=str,
+        required=True,
         help="Path to checkpoint directory (e.g., checkpoints/model/step_1000)",
     )
     parser.add_argument(
-        "image_path",
+        "--image_path",
         type=str,
+        required=True,
         help="Path to input image",
     )
     parser.add_argument(

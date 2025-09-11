@@ -14,24 +14,23 @@ import PIL.PngImagePlugin
 import torch
 import torch.distributed as dist
 import torch.optim as optim
-from datasets import (concatenate_datasets, get_dataset_config_names,
-                      load_dataset)
+from datasets import concatenate_datasets, get_dataset_config_names, load_dataset
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 
 # Suppress transformers warnings about sequence length
-os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
-logging.getLogger('transformers').setLevel(logging.ERROR)
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+logging.getLogger("transformers").setLevel(logging.ERROR)
 
-import models.config as config
-import wandb
-from data.advanced_datasets import ConstantLengthDataset
-from data.collators import VQACollator
-from data.data_utils import synchronized_dataloader_step
-from data.datasets import VQADataset
-from data.processors import get_image_processor, get_tokenizer
-from models.gpu_utils import configure_tf32
-from models.vision_language_model import VisionLanguageModel
+import models.config as config  # noqa: E402
+import wandb  # noqa: E402
+from data.advanced_datasets import ConstantLengthDataset  # noqa: E402
+from data.collators import VQACollator  # noqa: E402
+from data.data_utils import synchronized_dataloader_step  # noqa: E402
+from data.datasets import VQADataset  # noqa: E402
+from data.processors import get_image_processor, get_tokenizer  # noqa: E402
+from models.gpu_utils import configure_tf32  # noqa: E402
+from models.vision_language_model import VisionLanguageModel  # noqa: E402
 
 torch.manual_seed(0)
 if torch.cuda.is_available():
