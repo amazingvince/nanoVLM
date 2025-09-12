@@ -96,8 +96,18 @@ class SigLIPGrid(ImageGrid):
     tokens_per_tile: int  # Number of tokens per tile (mp_image_token_length)
 
     def get_modality_projector_dims(self, pixel_shuffle_factor: int) -> Tuple[int, int]:
-        """SigLIP grid dimensions need to be multiplied by shuffle factor."""
-        return self.rows * pixel_shuffle_factor, self.cols * pixel_shuffle_factor
+        """For SigLIP, each tile produces a fixed number of patches.
+        
+        Each tile is processed independently by the vision encoder to produce
+        patch embeddings. For a 224x224 tile with 16x16 patches, we get 14x14=196 patches.
+        
+        The modality projector needs the total patch grid dimensions across all tiles.
+        For mp_image_token_length=49, we have sqrt(49)=7 tokens per side per tile.
+        Working backwards: 7 * pixel_shuffle_factor = 14 patches per side per tile.
+        """
+        # Each tile produces sqrt(tokens_per_tile) * pixel_shuffle_factor patches per side
+        patches_per_tile_side = int(self.tokens_per_tile ** 0.5) * pixel_shuffle_factor
+        return self.rows * patches_per_tile_side, self.cols * patches_per_tile_side
 
     def get_final_grid_dims(self) -> Tuple[int, int]:
         """Return tile grid dimensions."""

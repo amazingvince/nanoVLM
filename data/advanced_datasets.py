@@ -159,6 +159,7 @@ class ConstantLengthDataset(IterableDataset):
                         "labels": packed[1],
                         "attention_mask": packed[2],
                         "images": packed[3],
+                        "image_grids": packed[4] if len(packed) > 4 else [],
                     }
                 )
 
@@ -219,16 +220,19 @@ class ConstantLengthDataset(IterableDataset):
         return [g for g in knapsack_groups if g]
 
     def _pack_one_group(self, group_indices, batch, max_len):
-        ids, lbl, am, ims = [], [], [], []
+        ids, lbl, am, ims, grids = [], [], [], [], []
 
         for i in group_indices:
             ids.extend(batch[i]["input_ids"])
             lbl.extend(batch[i]["labels"])
             am.extend(batch[i]["attention_mask"])
             ims.extend(batch[i]["images"])
+            # Handle image_grids if present
+            if "image_grids" in batch[i]:
+                grids.extend(batch[i]["image_grids"])
 
         # safety: assert we never overflow
         if len(ids) > max_len:
             raise ValueError(f"Packed length {len(ids)} > max_len {max_len}")
 
-        return torch.stack(ids), torch.stack(lbl), torch.stack(am), ims
+        return torch.stack(ids), torch.stack(lbl), torch.stack(am), ims, grids

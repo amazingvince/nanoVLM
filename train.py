@@ -1157,7 +1157,17 @@ def main():
 
     # Apply VLM configuration arguments
     vlm_cfg.vlm_checkpoint_path = args.vlm_checkpoint_path
-    vlm_cfg.max_img_size = args.max_img_size
+    
+    # Handle max_img_size with appropriate warnings
+    if args.max_img_size is not None:
+        if vlm_cfg.vit_architecture != "dinov3" and args.max_img_size != vlm_cfg.vit_img_size:
+            if is_master():
+                print(f"⚠️  Warning: --max_img_size={args.max_img_size} is different from vit_img_size={vlm_cfg.vit_img_size}")
+                print(f"   For {vlm_cfg.vit_architecture.upper()}, images will be resized to {vlm_cfg.vit_img_size}x{vlm_cfg.vit_img_size}")
+                print(f"   Only DINOv3 supports dynamic resolution. Using vit_img_size={vlm_cfg.vit_img_size} instead.")
+            vlm_cfg.max_img_size = vlm_cfg.vit_img_size  # Override to match vit_img_size for non-DINOv3
+        else:
+            vlm_cfg.max_img_size = args.max_img_size
 
     # Handle boolean flags
     train_cfg.compile = args.compile
