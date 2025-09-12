@@ -105,8 +105,10 @@ class SigLIPGrid(ImageGrid):
         For mp_image_token_length=49, we have sqrt(49)=7 tokens per side per tile.
         Working backwards: 7 * pixel_shuffle_factor = 14 patches per side per tile.
         """
-        # Each tile produces sqrt(tokens_per_tile) * pixel_shuffle_factor patches per side
-        patches_per_tile_side = int(self.tokens_per_tile**0.5) * pixel_shuffle_factor
+        # For SigLIP, each tile is processed independently as a 224x224 image
+        # This produces exactly 196 patches (14x14) per tile regardless of tokens_per_tile
+        # The modality projector then reduces this to tokens_per_tile through pixel shuffle
+        patches_per_tile_side = 14  # Fixed: 224x224 tile / 16x16 patches = 14x14 patches per tile
         return self.rows * patches_per_tile_side, self.cols * patches_per_tile_side
 
     def get_final_grid_dims(self) -> Tuple[int, int]:
@@ -129,24 +131,23 @@ class SigLIPGrid(ImageGrid):
         cls, raw_data: Any, pixel_shuffle_factor: int = 2, tokens_per_tile: int = 64
     ) -> "SigLIPGrid":
         """Create from SigLIP tuple format."""
-        if isinstance(raw_data, (tuple, list)) and len(raw_data) >= 2:
+        if isinstance(raw_data, (tuple, list)):
             # Handle nested lists (e.g., [[12, 16]])
-            while (
-                isinstance(raw_data, (list, tuple))
-                and len(raw_data) == 1
-                and isinstance(raw_data[0], (list, tuple))
-            ):
+            while isinstance(raw_data, (list, tuple)) and len(raw_data) == 1:
                 raw_data = raw_data[0]
-            # Also handle double-nested case
-            if (
-                isinstance(raw_data, (list, tuple))
-                and len(raw_data) >= 2
-                and isinstance(raw_data[0], (list, tuple))
-            ):
-                raw_data = raw_data[0]
-            return cls(
-                rows=raw_data[0], cols=raw_data[1], tokens_per_tile=tokens_per_tile
-            )
+            
+            # If we still have a list/tuple with at least 2 elements
+            if isinstance(raw_data, (list, tuple)) and len(raw_data) >= 2:
+                # If first element is also a list/tuple, take it
+                if isinstance(raw_data[0], (list, tuple)):
+                    raw_data = raw_data[0]
+                # Now ensure we have two integers for rows and cols
+                if len(raw_data) >= 2:
+                    rows, cols = int(raw_data[0]), int(raw_data[1])
+                    return cls(rows=rows, cols=cols, tokens_per_tile=tokens_per_tile)
+            
+            # If we couldn't extract rows and cols, return default 1x1 grid
+            return cls(rows=1, cols=1, tokens_per_tile=tokens_per_tile)
         elif isinstance(raw_data, dict) and "grid" in raw_data:
             grid = raw_data["grid"]
             tpt = raw_data.get("tokens_per_tile", tokens_per_tile)
@@ -260,22 +261,7 @@ def normalize_grids(grids: list, config: Any) -> list[ImageGrid]:
         try:
             normalized.append(GridFactory.create_from_raw(grid, config))
         except ValueError as e:
-            print(f"Warning: Failed to normalize grid {grid}: {e}")
-            # Create a default grid as fallback
-            if config.vit_architecture == "dinov3":
-                normalized.append(
-                    DINOv3Grid(
-                        Hp=config.mp_pixel_shuffle_factor,
-                        Wp=config.mp_pixel_shuffle_factor,
-                        Gh=1,
-                        Gw=1,
-                    )
-                )
-            else:
-                normalized.append(
-                    SigLIPGrid(
-                        rows=1, cols=1, tokens_per_tile=config.mp_image_token_length
-                    )
-                )
+            # Make this a hard error instead of warning with fallback
+            raise ValueError(f"Failed to normalize grid {grid}: {e}")
 
     return normalized

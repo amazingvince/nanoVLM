@@ -11,7 +11,7 @@ from safetensors.torch import save_model
 
 from data.processors import get_tokenizer
 from models.config import VLMConfig
-from models.grid_abstraction import normalize_grids
+from models.encoder_adapters import create_encoder_adapter
 from models.language_model import LanguageModel
 from models.modality_projector import ModalityProjector
 from models.utils import top_k_top_p_filtering
@@ -34,6 +34,7 @@ class VisionLanguageModel(nn.Module):
         self.tokenizer = get_tokenizer(
             cfg.lm_tokenizer, cfg.vlm_extra_tokens, cfg.lm_chat_template
         )
+        self.encoder_adapter = create_encoder_adapter(cfg)
 
     def _replace_img_tokens_with_embd(self, input_ids, token_embd, image_embd):
         """
@@ -59,17 +60,11 @@ class VisionLanguageModel(nn.Module):
             flat_image_embd = flat_image_embd[:num_image_tokens]
         elif flat_image_embd.size(0) < num_image_tokens:
             # This shouldn't happen, but handle gracefully
-            print(
-                f"Warning: Expected {num_image_tokens} image embeddings but got {flat_image_embd.size(0)}"
+            raise ValueError(
+                f"Expected {num_image_tokens} image embeddings but got {flat_image_embd.size(0)}. "
+                "This indicates a mismatch between image token count and actual image embeddings. "
+                "Check your grid dimensions and modality projector configuration."
             )
-            # Pad with zeros if we somehow have fewer embeddings than tokens
-            padding = torch.zeros(
-                num_image_tokens - flat_image_embd.size(0),
-                flat_image_embd.size(-1),
-                dtype=flat_image_embd.dtype,
-                device=flat_image_embd.device,
-            )
-            flat_image_embd = torch.cat([flat_image_embd, padding], dim=0)
 
         updated_token_embd[mask] = flat_image_embd.to(updated_token_embd.dtype)
 
@@ -78,94 +73,35 @@ class VisionLanguageModel(nn.Module):
     def forward(
         self, input_ids, images, attention_mask=None, targets=None, image_grids=None
     ):
-        if isinstance(images, list):
-            if not images:  # Handle cases with no images
-                images = torch.empty(
-                    0,
-                    self.cfg.vit_channels,
-                    self.cfg.vit_image_size,
-                    self.cfg.vit_image_size,
-                    device=input_ids.device,
-                )
-                image_grids = []
-            else:
-                if isinstance(images[0], list):
-                    images = [img for sublist in images for img in sublist]
-
-                # For DINOv3: Pad images to the same size before stacking
-                # When we have variable-sized images due to aspect-preserving resize
-                if images[0].dim() == 3:  # Individual images [C, H, W]
-                    # Find max dimensions in the batch
-                    max_h = max(img.shape[1] for img in images)
-                    max_w = max(img.shape[2] for img in images)
-
-                    # Store original sizes for proper grid handling
-                    original_sizes = [(img.shape[1], img.shape[2]) for img in images]
-
-                    # Pad each image to max dimensions (pad on right and bottom)
-                    padded_images = []
-                    for img in images:
-                        pad_h = max_h - img.shape[1]
-                        pad_w = max_w - img.shape[2]
-                        # Pad format: (left, right, top, bottom) with zero padding
-                        padded = F.pad(
-                            img, (0, pad_w, 0, pad_h), mode="constant", value=0
-                        )
-                        padded_images.append(padded)
-
-                    images = torch.stack(padded_images, dim=0).to(input_ids.device)
-
-                    # Store original sizes for later use in modality projector
-                    # This allows us to mask out padded tokens if needed
-                    self._batch_original_sizes = original_sizes
-                else:  # Already batched
-                    images = torch.cat(images, dim=0).to(input_ids.device)
-
-        # Process vision features
-        image_embd = self.vision_encoder(images)
-        # Apply modality projector with grid dimensions if available
+        # Handle empty images case
+        if not images or (isinstance(images, list) and len(images) == 0):
+            images = torch.empty(
+                0,
+                self.cfg.vit_channels,
+                self.cfg.vit_image_size,
+                self.cfg.vit_image_size,
+                device=input_ids.device,
+            )
+            image_grids = []
+        
+        # Prepare images using encoder adapter
         if image_grids is not None and len(image_grids) > 0:
-            # Process each image separately with its grid
-            projected = []
-
-            # Normalize grids to unified format
-            normalized_grids = normalize_grids(image_grids, self.cfg)
-
-            # When images are padded to same size, we process them together
-            # but need to handle grids individually based on original sizes
-            if hasattr(self, "_batch_original_sizes"):
-                # Images were padded - use original sizes to compute correct grids
-                patch_size = self.cfg.vit_patch_size
-
-                # Note: We don't need to track padded dimensions here
-                # The modality projector will extract only the real tokens
-                # based on the original (unpadded) dimensions we pass to it
-
-                for i, (orig_h, orig_w) in enumerate(self._batch_original_sizes):
-                    # Calculate actual patch grid for original image (before padding)
-                    Hp = orig_h // patch_size
-                    Wp = orig_w // patch_size
-
-                    # Extract the full padded embeddings for this image
-                    # The modality projector will handle extracting only real tokens
-                    img_features = image_embd[i : i + 1]
-
-                    # Pass original grid dimensions to modality projector
-                    proj_embd = self.MP(img_features, gh=Hp, gw=Wp)
-                    projected.append(proj_embd)
-
-                # Clean up
-                del self._batch_original_sizes
-            else:
-                # Use normalized grid abstraction
-                for i, grid in enumerate(normalized_grids):
-                    # Get dimensions for modality projector
-                    Hp, Wp = grid.get_modality_projector_dims(
-                        self.cfg.mp_pixel_shuffle_factor
-                    )
-                    proj_embd = self.MP(image_embd[i : i + 1], gh=Hp, gw=Wp)
-                    projected.append(proj_embd)
-
+            # Flatten nested lists if needed
+            if isinstance(images, list) and images and isinstance(images[0], list):
+                images = [img for sublist in images for img in sublist]
+            
+            # Use adapter to prepare images and normalize grids
+            prepared_images, normalized_grids = self.encoder_adapter.prepare_images(images, image_grids)
+            prepared_images = prepared_images.to(input_ids.device)
+            
+            # Process through vision encoder
+            image_embd = self.vision_encoder(prepared_images)
+            
+            # Use adapter to process embeddings through modality projector
+            projected = self.encoder_adapter.process_embeddings(
+                image_embd, normalized_grids, self.MP
+            )
+            
             # Pad projected embeddings to same size before concatenation
             max_seq_len = max(p.shape[1] for p in projected)
             padded_projected = []
@@ -178,7 +114,26 @@ class VisionLanguageModel(nn.Module):
                     padded_projected.append(p)
             image_embd = torch.cat(padded_projected, dim=0)
         else:
-            # Fallback to original square processing
+            # Fallback for when no grids provided
+            if isinstance(images, list):
+                # Flatten nested lists if needed
+                if images and isinstance(images[0], list):
+                    images = [img for sublist in images for img in sublist]
+                    
+                # Stack or concatenate based on dimensions
+                if images and images[0].dim() == 3:
+                    images = torch.stack(images, dim=0)
+                elif images:
+                    images = torch.cat(images, dim=0)
+            
+            # Ensure on correct device
+            if not isinstance(images, torch.Tensor):
+                images = torch.tensor(images, device=input_ids.device)
+            elif images.device != input_ids.device:
+                images = images.to(input_ids.device)
+            
+            # Process through vision encoder and modality projector
+            image_embd = self.vision_encoder(images)
             image_embd = self.MP(image_embd)
 
         token_embd = self.decoder.token_embedding(input_ids)  # [B, T_sequence, D_lm]
@@ -221,41 +176,35 @@ class VisionLanguageModel(nn.Module):
         greedy=False,
         image_grids=None,
     ):
-        if isinstance(images, list):
-            if not images:  # Handle cases with no images
-                images = torch.empty(
-                    0,
-                    self.cfg.vit_channels,
-                    self.cfg.vit_image_size,
-                    self.cfg.vit_image_size,
-                    device=input_ids.device,
-                )
-                image_grids = []
-            else:
-                if isinstance(images[0], list):
-                    images = [img for sublist in images for img in sublist]
-                images = torch.cat(images, dim=0).to(input_ids.device)
-
-        # 1. Process image
-        image_embd = self.vision_encoder(images)  # [B, T_img_feat, D_model]
-
-        # Apply modality projector with grid dimensions if available
+        # Handle empty images case
+        if not images or (isinstance(images, list) and len(images) == 0):
+            images = torch.empty(
+                0,
+                self.cfg.vit_channels,
+                self.cfg.vit_image_size,
+                self.cfg.vit_image_size,
+                device=input_ids.device,
+            )
+            image_grids = []
+        
+        # Prepare images using encoder adapter
         if image_grids is not None and len(image_grids) > 0:
-            # Normalize grids to unified format
-            normalized_grids = normalize_grids(image_grids, self.cfg)
-
-            # Process each image separately with its grid
-            projected = []
-            for i, grid in enumerate(normalized_grids):
-                # Get dimensions for modality projector
-                Hp, Wp = grid.get_modality_projector_dims(
-                    self.cfg.mp_pixel_shuffle_factor
-                )
-
-                # Pass grid dimensions to modality projector
-                proj_embd = self.MP(image_embd[i : i + 1], gh=Hp, gw=Wp)
-                projected.append(proj_embd)
-
+            # Flatten nested lists if needed
+            if isinstance(images, list) and images and isinstance(images[0], list):
+                images = [img for sublist in images for img in sublist]
+            
+            # Use adapter to prepare images and normalize grids
+            prepared_images, normalized_grids = self.encoder_adapter.prepare_images(images, image_grids)
+            prepared_images = prepared_images.to(input_ids.device)
+            
+            # Process through vision encoder
+            image_embd = self.vision_encoder(prepared_images)
+            
+            # Use adapter to process embeddings through modality projector
+            projected = self.encoder_adapter.process_embeddings(
+                image_embd, normalized_grids, self.MP
+            )
+            
             # Pad projected embeddings to same size before concatenation
             max_seq_len = max(p.shape[1] for p in projected)
             padded_projected = []
@@ -268,7 +217,15 @@ class VisionLanguageModel(nn.Module):
                     padded_projected.append(p)
             image_embd = torch.cat(padded_projected, dim=0)
         else:
-            # Fallback to original square processing
+            # Fallback for when no grids provided
+            if isinstance(images, list):
+                if images and isinstance(images[0], list):
+                    images = [img for sublist in images for img in sublist]
+                if images:
+                    images = torch.cat(images, dim=0).to(input_ids.device)
+            
+            # Process through vision encoder and modality projector
+            image_embd = self.vision_encoder(images)
             image_embd = self.MP(image_embd)
 
         # 2. Embed initial text prompt tokens

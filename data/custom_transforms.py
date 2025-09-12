@@ -44,9 +44,18 @@ class DynamicResize(torch.nn.Module):
         # 2) scale factor
         scale = target_long / long
 
-        # 3) compute short side with ceil → never undershoot
-        target_short = math.ceil(short * scale / self.p) * self.p
+        # 3) compute short side ensuring it's divisible by patch_size
+        # First calculate the exact scaled dimension
+        exact_short = short * scale
+        # Then round up to nearest multiple of patch_size
+        target_short = math.ceil(exact_short / self.p) * self.p
         target_short = max(target_short, self.p)  # just in case
+        
+        # Additional check: ensure both dimensions are divisible by patch_size
+        if target_short % self.p != 0:
+            target_short = math.ceil(target_short / self.p) * self.p
+        if target_long % self.p != 0:
+            target_long = math.ceil(target_long / self.p) * self.p
 
         return (target_short, target_long) if w >= h else (target_long, target_short)
 

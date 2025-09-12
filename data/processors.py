@@ -151,16 +151,8 @@ def get_image_string(tokenizer, splitted_image_counts, mp_image_token_length):
             # Emit exactly n_h * n_w tokens for the image
             image_string += tokenizer.image_token * (n_h * n_w)
         else:
-            # Legacy mode for fixed grids (SigLIP)
-            for i in range(n_h):
-                for j in range(n_w):
-                    # Use grid tokens if available, otherwise fall back to generic image token
-                    grid_token_name = f"r{i + 1}c{j + 1}"
-                    if hasattr(tokenizer, grid_token_name):
-                        image_string += getattr(tokenizer, grid_token_name)
-                    else:
-                        # Fallback to generic image token if specific grid token doesn't exist
-                        image_string += tokenizer.image_token
-                    # Add the image tokens for the patch content
-                    image_string += tokenizer.image_token * mp_image_token_length
+            # For SigLIP, each tile produces mp_image_token_length tokens
+            # Calculate total tokens based on actual tile count
+            total_tokens = n_h * n_w * mp_image_token_length
+            image_string += tokenizer.image_token * total_tokens
     return image_string
