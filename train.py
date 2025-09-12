@@ -617,7 +617,7 @@ def train(train_cfg, vlm_cfg, custom_run_name=None):
                     lmms_results = {}
                     # Only run lmms_eval at eval_interval, not every validation
                     if should_save_best and train_cfg.use_lmms_eval:
-                        from eval.evaluation import cli_evaluate
+                        from evaluation import cli_evaluate
 
                         eval_args = argparse.Namespace(
                             model=model.module if is_dist() else model,
