@@ -550,7 +550,17 @@ def train(train_cfg, vlm_cfg, custom_run_name=None):
                     torch.cuda.empty_cache()
                 with torch.no_grad():
                     total_val_loss = 0
-                    for batch in val_loader:
+                    val_loader_len = len(val_loader)
+                    for i, batch in enumerate(val_loader):
+                        if is_master():
+                            # Show progress bar only on master rank
+                            progress = (i + 1) / val_loader_len * 100
+                            print(
+                                f"\rValidation: {progress:.1f}% complete ({i + 1}/{val_loader_len})",
+                                end="",
+                                flush=True,
+                            )
+
                         # Skip None batches (shouldn't happen with truncation, but handle gracefully)
                         if batch is None:
                             continue
@@ -573,8 +583,12 @@ def train(train_cfg, vlm_cfg, custom_run_name=None):
                             )
 
                         total_val_loss += loss.item()
+
+                    if is_master():
+                        print()  # New line after progress bar
+
                     avg_val_loss = (
-                        total_val_loss / len(val_loader) if len(val_loader) > 0 else 0
+                        total_val_loss / val_loader_len if val_loader_len > 0 else 0
                     )
                     avg_val_loss = (
                         mean(dist_gather(avg_val_loss)) if is_dist() else avg_val_loss

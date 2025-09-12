@@ -89,6 +89,9 @@ if len(splitted_image_counts) > 0 and isinstance(splitted_image_counts[0], dict)
 3. **Monitor sequence lengths** - add logging to identify unusually long sequences
 4. **Validate eval paths** - ensure all evaluation scripts handle grids correctly
 5. **Use consistent pixel shuffle factors** - verify factor consistency across processor, model, and config
+6. **Support both vision encoder formats** - handle both DINOv3 (dict) and SIGLIP (tuple) grid formats in inference code
+7. **Test checkpoint loading** - verify both training and inference work after config changes
+8. **Maintain backward compatibility** - filter unknown config fields when loading older checkpoints
 
 ## Future Improvements
 
