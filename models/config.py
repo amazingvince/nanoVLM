@@ -131,6 +131,7 @@ class TrainConfig:
     validation_steps: int = (
         None  # Run validation every N steps (overrides eval_interval if set)
     )
+    max_validation_samples: int = None  # Limit validation to N samples (None = use all)
     stats_log_interval: int = gradient_accumulation_steps * 25
     save_checkpoint_steps: int = (
         None  # Save checkpoint every N steps (in addition to best model)

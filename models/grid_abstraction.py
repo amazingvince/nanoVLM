@@ -120,6 +120,12 @@ class SigLIPGrid(ImageGrid):
     ) -> "SigLIPGrid":
         """Create from SigLIP tuple format."""
         if isinstance(raw_data, (tuple, list)) and len(raw_data) >= 2:
+            # Handle nested lists (e.g., [[12, 16]])
+            while isinstance(raw_data, (list, tuple)) and len(raw_data) == 1 and isinstance(raw_data[0], (list, tuple)):
+                raw_data = raw_data[0]
+            # Also handle double-nested case
+            if isinstance(raw_data, (list, tuple)) and len(raw_data) >= 2 and isinstance(raw_data[0], (list, tuple)):
+                raw_data = raw_data[0]
             return cls(
                 rows=raw_data[0], cols=raw_data[1], tokens_per_tile=tokens_per_tile
             )
@@ -165,7 +171,15 @@ class GridFactory:
             if isinstance(raw_data, dict):
                 if "GhGw" in raw_data or "HpWp" in raw_data:
                     return DINOv3Grid.from_raw(raw_data, config.mp_pixel_shuffle_factor)
-            elif isinstance(raw_data, (tuple, list)) and len(raw_data) >= 2:
+            elif isinstance(raw_data, (tuple, list)) and len(raw_data) >= 1:
+                # Handle nested lists (e.g., [[12, 16]])
+                while len(raw_data) == 1 and isinstance(raw_data[0], (list, tuple)):
+                    raw_data = raw_data[0]
+                # Ensure we have at least 2 elements
+                if len(raw_data) < 2:
+                    return DINOv3Grid(Hp=config.mp_pixel_shuffle_factor, 
+                                     Wp=config.mp_pixel_shuffle_factor,
+                                     Gh=1, Gw=1)
                 # Convert tuple to DINOv3 format
                 # Assume these are post-shuffle dims
                 Gh, Gw = raw_data[0], raw_data[1]

@@ -222,12 +222,24 @@ def get_dataloaders(train_cfg, vlm_cfg):
             max_images_per_example=train_cfg.max_images_per_example,
             max_images_per_knapsack=train_cfg.max_images_per_knapsack,
         )
+    # Create validation dataset
+    val_range_end = total_samples
     val_dataset = VQADataset(
-        train_ds.select(range(train_size, total_samples)),
+        train_ds.select(range(train_size, val_range_end)),
         tokenizer,
         image_processor,
         vlm_cfg.mp_image_token_length,
     )
+    
+    # Apply max_validation_samples if specified
+    if train_cfg.max_validation_samples is not None:
+        actual_val_size = min(len(val_dataset), train_cfg.max_validation_samples)
+        if actual_val_size < len(val_dataset):
+            # Select a subset of validation samples
+            val_indices = list(range(actual_val_size))
+            val_dataset = torch.utils.data.Subset(val_dataset, val_indices)
+            if is_master():
+                print(f"Limited validation set to {actual_val_size} samples (from {val_size})")
 
     # Create separate collators for training and validation
     train_collator = VQACollator(tokenizer, vlm_cfg.lm_max_length, is_validation=False)
@@ -1014,6 +1026,12 @@ def main():
         help="Validation set ratio",
     )
     parser.add_argument(
+        "--max_validation_samples",
+        type=int,
+        default=default_train_cfg.max_validation_samples,
+        help="Maximum number of validation samples to use (None = use all)",
+    )
+    parser.add_argument(
         "--max_steps",
         type=int,
         default=None,
@@ -1088,11 +1106,17 @@ def main():
         elif (
             args.language_model == "smollm-135m"
             or args.language_model == "HuggingFaceTB/SmolLM2-135M"
+            or args.language_model == "HuggingFaceTB/SmolLM2-135M-Instruct"
         ):
             # Smaller SmolLM2-135M
             vlm_cfg.lm_architecture = "llama"
-            vlm_cfg.lm_model_type = "HuggingFaceTB/SmolLM2-135M"
-            vlm_cfg.lm_tokenizer = "HuggingFaceTB/SmolLM2-135M"
+            # Use the Instruct variant if specified
+            if "Instruct" in args.language_model:
+                vlm_cfg.lm_model_type = "HuggingFaceTB/SmolLM2-135M-Instruct"
+                vlm_cfg.lm_tokenizer = "HuggingFaceTB/SmolLM2-135M-Instruct"
+            else:
+                vlm_cfg.lm_model_type = "HuggingFaceTB/SmolLM2-135M"
+                vlm_cfg.lm_tokenizer = "HuggingFaceTB/SmolLM2-135M"
             vlm_cfg.lm_hidden_dim = 576
             vlm_cfg.lm_inter_dim = 1536
             vlm_cfg.lm_n_heads = 9
@@ -1125,6 +1149,7 @@ def main():
     train_cfg.save_checkpoint_steps = args.save_checkpoint_steps
     train_cfg.wandb_entity = args.wandb_entity
     train_cfg.val_ratio = args.val_ratio
+    train_cfg.max_validation_samples = args.max_validation_samples
 
     # Handle max_steps alias
     if args.max_steps is not None:
