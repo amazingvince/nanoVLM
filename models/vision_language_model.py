@@ -11,6 +11,7 @@ from safetensors.torch import save_model
 
 from data.processors import get_tokenizer
 from models.config import VLMConfig
+from models.grid_abstraction import normalize_grids
 from models.language_model import LanguageModel
 from models.modality_projector import ModalityProjector
 from models.utils import top_k_top_p_filtering
@@ -127,6 +128,9 @@ class VisionLanguageModel(nn.Module):
             # Process each image separately with its grid
             projected = []
 
+            # Normalize grids to unified format
+            normalized_grids = normalize_grids(image_grids, self.cfg)
+
             # When images are padded to same size, we process them together
             # but need to handle grids individually based on original sizes
             if hasattr(self, "_batch_original_sizes"):
@@ -153,9 +157,12 @@ class VisionLanguageModel(nn.Module):
                 # Clean up
                 del self._batch_original_sizes
             else:
-                s = self.cfg.mp_pixel_shuffle_factor
-                for i, (g_h, g_w) in enumerate(image_grids):
-                    Hp, Wp = g_h * s, g_w * s
+                # Use normalized grid abstraction
+                for i, grid in enumerate(normalized_grids):
+                    # Get dimensions for modality projector
+                    Hp, Wp = grid.get_modality_projector_dims(
+                        self.cfg.mp_pixel_shuffle_factor
+                    )
                     proj_embd = self.MP(image_embd[i : i + 1], gh=Hp, gw=Wp)
                     projected.append(proj_embd)
 
@@ -232,25 +239,18 @@ class VisionLanguageModel(nn.Module):
         # 1. Process image
         image_embd = self.vision_encoder(images)  # [B, T_img_feat, D_model]
 
-        print(
-            f"DEBUG: image_grids type: {type(image_grids)}, len: {len(image_grids) if image_grids is not None else 'N/A'}"
-        )
         # Apply modality projector with grid dimensions if available
         if image_grids is not None and len(image_grids) > 0:
+            # Normalize grids to unified format
+            normalized_grids = normalize_grids(image_grids, self.cfg)
+
             # Process each image separately with its grid
             projected = []
-            for i, (gh, gw) in enumerate(image_grids):
-                # Get patch grid dimensions from vision encoder if stored
-                if hasattr(self.vision_encoder.patch_embedding, "_last_hw"):
-                    Hp, Wp = self.vision_encoder.patch_embedding._last_hw
-                else:
-                    # Fallback: compute from sequence length
-                    seq_len = image_embd[i : i + 1].shape[1]
-                    if self.cfg.vit_cls_flag:
-                        seq_len -= 1
-                    if hasattr(self.cfg, "vit_num_registers"):
-                        seq_len -= self.cfg.vit_num_registers
-                    Hp = Wp = int(seq_len**0.5)
+            for i, grid in enumerate(normalized_grids):
+                # Get dimensions for modality projector
+                Hp, Wp = grid.get_modality_projector_dims(
+                    self.cfg.mp_pixel_shuffle_factor
+                )
 
                 # Pass grid dimensions to modality projector
                 proj_embd = self.MP(image_embd[i : i + 1], gh=Hp, gw=Wp)

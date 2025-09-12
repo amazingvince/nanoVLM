@@ -3,6 +3,7 @@ from torchvision.transforms import Normalize
 from transformers import AutoTokenizer
 
 from data.custom_transforms import DynamicResize, SplitImage
+from models.grid_abstraction import DINOv3Grid
 
 # ImageNet normalization constants
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
@@ -115,17 +116,24 @@ def get_image_processor(
                 f"Patch grid (Hp={Hp}, Wp={Wp}) must be divisible by pixel_shuffle_factor={s}"
             )
             Gh, Gw = Hp // s, Wp // s
-            return x, {"HpWp": (Hp, Wp), "GhGw": (Gh, Gw)}
+
+            # Return tensor and DINOv3Grid object
+            grid = DINOv3Grid(Hp=Hp, Wp=Wp, Gh=Gh, Gw=Gw)
+            return x, grid.to_dict()  # Keep dict format for backward compatibility
 
         return process_single_image
     else:
         # For SigLIP: split into multiple sub-images with normalization
         return transforms.Compose(
             [
-                DynamicResize(splitted_image_size, max_img_size),
+                DynamicResize(
+                    patch_size=splitted_image_size,
+                    max_side_len=max_img_size,
+                    allow_upscale=allow_upscale,
+                ),
                 transforms.ToTensor(),
                 Normalize(IMAGENET_MEAN, IMAGENET_STD),
-                SplitImage(splitted_image_size),
+                SplitImage(patch_size=splitted_image_size),
             ]
         )
 
