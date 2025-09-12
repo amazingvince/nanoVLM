@@ -97,16 +97,16 @@ class SigLIPGrid(ImageGrid):
 
     def get_modality_projector_dims(self, pixel_shuffle_factor: int) -> Tuple[int, int]:
         """For SigLIP, each tile produces a fixed number of patches.
-        
+
         Each tile is processed independently by the vision encoder to produce
         patch embeddings. For a 224x224 tile with 16x16 patches, we get 14x14=196 patches.
-        
+
         The modality projector needs the total patch grid dimensions across all tiles.
         For mp_image_token_length=49, we have sqrt(49)=7 tokens per side per tile.
         Working backwards: 7 * pixel_shuffle_factor = 14 patches per side per tile.
         """
         # Each tile produces sqrt(tokens_per_tile) * pixel_shuffle_factor patches per side
-        patches_per_tile_side = int(self.tokens_per_tile ** 0.5) * pixel_shuffle_factor
+        patches_per_tile_side = int(self.tokens_per_tile**0.5) * pixel_shuffle_factor
         return self.rows * patches_per_tile_side, self.cols * patches_per_tile_side
 
     def get_final_grid_dims(self) -> Tuple[int, int]:
@@ -131,10 +131,18 @@ class SigLIPGrid(ImageGrid):
         """Create from SigLIP tuple format."""
         if isinstance(raw_data, (tuple, list)) and len(raw_data) >= 2:
             # Handle nested lists (e.g., [[12, 16]])
-            while isinstance(raw_data, (list, tuple)) and len(raw_data) == 1 and isinstance(raw_data[0], (list, tuple)):
+            while (
+                isinstance(raw_data, (list, tuple))
+                and len(raw_data) == 1
+                and isinstance(raw_data[0], (list, tuple))
+            ):
                 raw_data = raw_data[0]
             # Also handle double-nested case
-            if isinstance(raw_data, (list, tuple)) and len(raw_data) >= 2 and isinstance(raw_data[0], (list, tuple)):
+            if (
+                isinstance(raw_data, (list, tuple))
+                and len(raw_data) >= 2
+                and isinstance(raw_data[0], (list, tuple))
+            ):
                 raw_data = raw_data[0]
             return cls(
                 rows=raw_data[0], cols=raw_data[1], tokens_per_tile=tokens_per_tile
@@ -187,9 +195,12 @@ class GridFactory:
                     raw_data = raw_data[0]
                 # Ensure we have at least 2 elements
                 if len(raw_data) < 2:
-                    return DINOv3Grid(Hp=config.mp_pixel_shuffle_factor, 
-                                     Wp=config.mp_pixel_shuffle_factor,
-                                     Gh=1, Gw=1)
+                    return DINOv3Grid(
+                        Hp=config.mp_pixel_shuffle_factor,
+                        Wp=config.mp_pixel_shuffle_factor,
+                        Gh=1,
+                        Gw=1,
+                    )
                 # Convert tuple to DINOv3 format
                 # Assume these are post-shuffle dims
                 Gh, Gw = raw_data[0], raw_data[1]

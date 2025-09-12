@@ -230,7 +230,7 @@ def get_dataloaders(train_cfg, vlm_cfg):
         image_processor,
         vlm_cfg.mp_image_token_length,
     )
-    
+
     # Apply max_validation_samples if specified
     if train_cfg.max_validation_samples is not None:
         actual_val_size = min(len(val_dataset), train_cfg.max_validation_samples)
@@ -239,7 +239,9 @@ def get_dataloaders(train_cfg, vlm_cfg):
             val_indices = list(range(actual_val_size))
             val_dataset = torch.utils.data.Subset(val_dataset, val_indices)
             if is_master():
-                print(f"Limited validation set to {actual_val_size} samples (from {val_size})")
+                print(
+                    f"Limited validation set to {actual_val_size} samples (from {val_size})"
+                )
 
     # Create separate collators for training and validation
     train_collator = VQACollator(tokenizer, vlm_cfg.lm_max_length, is_validation=False)
@@ -1157,15 +1159,26 @@ def main():
 
     # Apply VLM configuration arguments
     vlm_cfg.vlm_checkpoint_path = args.vlm_checkpoint_path
-    
+
     # Handle max_img_size with appropriate warnings
     if args.max_img_size is not None:
-        if vlm_cfg.vit_architecture != "dinov3" and args.max_img_size != vlm_cfg.vit_img_size:
+        if (
+            vlm_cfg.vit_architecture != "dinov3"
+            and args.max_img_size != vlm_cfg.vit_img_size
+        ):
             if is_master():
-                print(f"⚠️  Warning: --max_img_size={args.max_img_size} is different from vit_img_size={vlm_cfg.vit_img_size}")
-                print(f"   For {vlm_cfg.vit_architecture.upper()}, images will be resized to {vlm_cfg.vit_img_size}x{vlm_cfg.vit_img_size}")
-                print(f"   Only DINOv3 supports dynamic resolution. Using vit_img_size={vlm_cfg.vit_img_size} instead.")
-            vlm_cfg.max_img_size = vlm_cfg.vit_img_size  # Override to match vit_img_size for non-DINOv3
+                print(
+                    f"⚠️  Warning: --max_img_size={args.max_img_size} is different from vit_img_size={vlm_cfg.vit_img_size}"
+                )
+                print(
+                    f"   For {vlm_cfg.vit_architecture.upper()}, images will be resized to {vlm_cfg.vit_img_size}x{vlm_cfg.vit_img_size}"
+                )
+                print(
+                    f"   Only DINOv3 supports dynamic resolution. Using vit_img_size={vlm_cfg.vit_img_size} instead."
+                )
+            vlm_cfg.max_img_size = (
+                vlm_cfg.vit_img_size
+            )  # Override to match vit_img_size for non-DINOv3
         else:
             vlm_cfg.max_img_size = args.max_img_size
 
