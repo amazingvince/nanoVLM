@@ -366,7 +366,7 @@ def train(train_cfg, vlm_cfg, custom_run_name=None):
         for p in model.vision_encoder.parameters():
             p.requires_grad = False
         if is_master():
-            print("Vision encoder weights are frozen (Locked-image Text tuning)")
+            pass
     elif train_cfg.lr_backbones > 0:
         # Train vision encoder with lower learning rate
         param_groups.append(

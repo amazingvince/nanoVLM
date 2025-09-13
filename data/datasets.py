@@ -11,7 +11,17 @@ class BaseDataset(Dataset):
         self.tokenizer = tokenizer
         self.image_processor = image_processor
         self.mp_image_token_length = mp_image_token_length
-
+        # Add config and grid factory
+        self.cfg = getattr(dataset, 'cfg', None)
+        if hasattr(dataset, 'grid_factory') and dataset.grid_factory is not None:
+            self.grid_factory = dataset.grid_factory
+        else:
+            from models.grid_abstraction import GridFactory
+            self.grid_factory = GridFactory()
+            # Ensure cfg is set for grid factory
+            if self.cfg is None and hasattr(dataset, 'cfg'):
+                self.cfg = dataset.cfg
+        
         self.prefix_len = self._get_prefix_len()
 
     def __len__(self):
@@ -38,7 +48,7 @@ class BaseDataset(Dataset):
             messages.append({"role": "assistant", "content": text["assistant"]})
 
         image_string = get_image_string(
-            self.tokenizer, splitted_image_counts, self.mp_image_token_length
+            self.tokenizer, splitted_image_counts, self.mp_image_token_length, getattr(self, 'cfg', None)
         )
 
         if len(splitted_image_counts) > 0:

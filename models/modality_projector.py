@@ -24,6 +24,9 @@ class ModalityProjector(nn.Module):
         self.input_dim = cfg.vit_hidden_dim * (cfg.mp_pixel_shuffle_factor**2)
         self.output_dim = cfg.lm_hidden_dim
         self.scale_factor = cfg.mp_pixel_shuffle_factor
+        
+        # Store original vit_img_size for reference
+        self.original_vit_img_size = cfg.vit_img_size
 
         self.proj = nn.Linear(self.input_dim, self.output_dim, bias=False)
 
@@ -67,15 +70,17 @@ class ModalityProjector(nn.Module):
         """
         bsz, seq, embed_dim = x.size()
 
+        # The expected sequence should match the grid dimensions passed in
+        expected_seq = int(gh) * int(gw)
+        
         # If we have more tokens than expected (due to padding), take only the real ones
-        expected_seq = gh * gw
         if seq > expected_seq:
             # Extract only the real (non-padded) tokens
             # Assuming padding is at the end (right and bottom)
             x = x[:, :expected_seq, :]
             seq = expected_seq
 
-        assert seq == gh * gw, f"seq {seq} != gh*gw {gh * gw}"
+        assert seq == expected_seq, f"seq {seq} != expected {expected_seq} (gh={gh}, gw={gw})"
         s = self.scale_factor
         assert gh % s == 0 and gw % s == 0, (
             f"Grid dimensions (gh={gh}, gw={gw}) must be divisible by scale factor {s}"

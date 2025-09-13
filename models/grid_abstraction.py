@@ -75,12 +75,12 @@ class DINOv3Grid(ImageGrid):
         """Create from DINOv3 dict format."""
         if isinstance(raw_data, dict):
             if "GhGw" in raw_data and "HpWp" in raw_data:
-                Hp, Wp = raw_data["HpWp"]
-                Gh, Gw = raw_data["GhGw"]
+                Hp, Wp = map(int, raw_data["HpWp"])
+                Gh, Gw = map(int, raw_data["GhGw"])
                 return cls(Hp=Hp, Wp=Wp, Gh=Gh, Gw=Gw)
             elif "GhGw" in raw_data:
                 # Only have post-shuffle dims, compute pre-shuffle
-                Gh, Gw = raw_data["GhGw"]
+                Gh, Gw = map(int, raw_data["GhGw"])
                 Hp = Gh * pixel_shuffle_factor
                 Wp = Gw * pixel_shuffle_factor
                 return cls(Hp=Hp, Wp=Wp, Gh=Gh, Gw=Gw)
@@ -105,10 +105,8 @@ class SigLIPGrid(ImageGrid):
         For mp_image_token_length=49, we have sqrt(49)=7 tokens per side per tile.
         Working backwards: 7 * pixel_shuffle_factor = 14 patches per side per tile.
         """
-        # For SigLIP, each tile is processed independently as a 224x224 image
-        # This produces exactly 196 patches (14x14) per tile regardless of tokens_per_tile
-        # The modality projector then reduces this to tokens_per_tile through pixel shuffle
-        patches_per_tile_side = 14  # Fixed: 224x224 tile / 16x16 patches = 14x14 patches per tile
+        # For SigLIP, each tile is 224x224 with 16x16 patches = 14x14 patches per tile
+        patches_per_tile_side = 14  # Fixed for 224x224 tiles with 16x16 patches
         return self.rows * patches_per_tile_side, self.cols * patches_per_tile_side
 
     def get_final_grid_dims(self) -> Tuple[int, int]:
@@ -194,17 +192,17 @@ class GridFactory:
                 # Handle nested lists (e.g., [[12, 16]])
                 while len(raw_data) == 1 and isinstance(raw_data[0], (list, tuple)):
                     raw_data = raw_data[0]
-                # Ensure we have at least 2 elements
-                if len(raw_data) < 2:
+                # Ensure we have at least 2 elements and they're not nested
+                if len(raw_data) < 2 or isinstance(raw_data[0], (list, tuple)):
                     return DINOv3Grid(
                         Hp=config.mp_pixel_shuffle_factor,
                         Wp=config.mp_pixel_shuffle_factor,
                         Gh=1,
                         Gw=1,
                     )
-                # Convert tuple to DINOv3 format
-                # Assume these are post-shuffle dims
-                Gh, Gw = raw_data[0], raw_data[1]
+                # Convert to integers, handling potential nested values
+                Gh = int(raw_data[0][0] if isinstance(raw_data[0], (list, tuple)) else raw_data[0])
+                Gw = int(raw_data[1][0] if isinstance(raw_data[1], (list, tuple)) else raw_data[1])
                 Hp = Gh * config.mp_pixel_shuffle_factor
                 Wp = Gw * config.mp_pixel_shuffle_factor
                 return DINOv3Grid(Hp=Hp, Wp=Wp, Gh=Gh, Gw=Gw)

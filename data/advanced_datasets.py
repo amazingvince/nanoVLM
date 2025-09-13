@@ -32,9 +32,8 @@ class ConstantLengthDataset(IterableDataset):
         self.max_images_per_example = max_images_per_example
         self.max_images_per_knapsack = max_images_per_knapsack
         self._sentinel = object()
-        self._average_length_per_sample = (
-            self.dataset.mp_image_token_length + 198
-        )  # 198 is the average tokens for the cauldron dataset
+        # Remove static token length assumption
+        self._average_length_per_sample = 198  # Only text tokens for estimation
 
     def __len__(self):
         return int(
@@ -124,6 +123,17 @@ class ConstantLengthDataset(IterableDataset):
                 if len(sample["images"]) > self.max_images_per_example:
                     continue  # skip samples that exceed the image constraint
 
+                # Get actual image token count using grid abstraction
+                image_token_count = 0
+                if "image_grids" in sample and sample["image_grids"] and self.dataset.cfg is not None:
+                    for grid_info in sample["image_grids"]:
+                        grid = self.dataset.grid_factory.create_from_raw(grid_info, self.dataset.cfg)
+                        image_token_count += grid.get_token_count()
+                else:
+                    # Fallback for backward compatibility
+                    image_token_count = len(sample["images"]) * self.dataset.mp_image_token_length
+                
+                # Add padding
                 sample["input_ids"] = torch.cat(
                     [
                         sample["input_ids"],

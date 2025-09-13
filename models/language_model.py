@@ -64,7 +64,7 @@ class RotaryEmbedding(nn.Module):
         super().__init__()
 
         # Use custom head_dim if available (e.g., Gemma-3 has 256 instead of 640/4=160)
-        self.dim = getattr(cfg, "lm_head_dim", cfg.lm_hidden_dim // cfg.lm_n_heads)
+        self.dim = cfg.lm_head_dim if cfg.lm_head_dim is not None else cfg.lm_hidden_dim // cfg.lm_n_heads
         self.base = cfg.lm_re_base
         self.max_seq_len = cfg.lm_max_position_embeddings
         # Standard RoPE implementation - create frequencies for each dimension
@@ -209,7 +209,7 @@ class LanguageModelGroupedQueryAttention(nn.Module):
 
         self.n_kv_groups = self.n_heads // self.n_kv_heads
         # Support custom head_dim (e.g., Gemma-3 uses 256 instead of 640/4=160)
-        self.head_dim = getattr(cfg, "lm_head_dim", self.embd_dim // self.n_heads)
+        self.head_dim = cfg.lm_head_dim if cfg.lm_head_dim is not None else self.embd_dim // self.n_heads
 
         # Q projection can be larger than embd_dim if head_dim is custom
         self.q_proj = nn.Linear(self.embd_dim, self.n_heads * self.head_dim, bias=False)

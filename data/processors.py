@@ -84,6 +84,7 @@ def get_image_processor(
         vit_patch_size: Patch size for vision transformer
         pixel_shuffle_factor: Factor for pixel shuffle downsampling
         allow_upscale: Whether to allow upscaling images
+        grid_factory: Optional GridFactory for token calculation (used internally)
     """
     if single_image_mode:
         # DINOv3 path: aspect-preserving resize with proper grid calculation
@@ -138,21 +139,35 @@ def get_image_processor(
         )
 
 
-def get_image_string(tokenizer, splitted_image_counts, mp_image_token_length):
+def get_image_string(tokenizer, splitted_image_counts, mp_image_token_length, config=None):
+    """
+    Generate image token string based on actual grid configurations.
+    
+    Args:
+        tokenizer: Tokenizer with image_token attribute
+        splitted_image_counts: List of tuples (n_h, n_w) or grid info
+        mp_image_token_length: Base token length per tile/grid cell
+        config: VLMConfig for grid factory (optional)
+    """
+    from models.grid_abstraction import GridFactory
+    
     image_string = ""
-    # splitted_image_counts is a list of tuples (n_h, n_w)
-    for idx, (n_h, n_w) in enumerate(splitted_image_counts):
+    for idx, grid_info in enumerate(splitted_image_counts):
         if len(splitted_image_counts) > 1:
             image_string += f"<image: {idx}>"
-
-        # For DINOv3 with dynamic grids, use actual grid dimensions
-        # mp_image_token_length=1 means each grid cell gets 1 token
-        if mp_image_token_length == 1:
-            # Emit exactly n_h * n_w tokens for the image
-            image_string += tokenizer.image_token * (n_h * n_w)
+        
+        # Create grid object to get actual token count
+        if config is not None:
+            grid = GridFactory.create_from_raw(grid_info, config)
+            token_count = grid.get_token_count()
         else:
-            # For SigLIP, each tile produces mp_image_token_length tokens
-            # Calculate total tokens based on actual tile count
-            total_tokens = n_h * n_w * mp_image_token_length
-            image_string += tokenizer.image_token * total_tokens
+            # Fallback for backward compatibility
+            n_h, n_w = grid_info if isinstance(grid_info, tuple) else (1, 1)
+            if mp_image_token_length == 1:
+                token_count = n_h * n_w
+            else:
+                token_count = n_h * n_w * mp_image_token_length
+        
+        # Emit placeholder tokens
+        image_string += tokenizer.image_token * token_count
     return image_string

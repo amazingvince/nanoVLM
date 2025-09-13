@@ -61,7 +61,8 @@ class SigLIPAdapter(VisionEncoderAdapter):
     
     def __init__(self, config):
         self.config = config
-        self.patches_per_tile = 196  # 14x14 patches for 224x224 tile with 16x16 patches
+        # Calculate patches per tile based on config
+        self.patches_per_tile = (config.vit_img_size // config.vit_patch_size) ** 2
         
     def prepare_images(self, images: List[torch.Tensor], grids: List[Any]) -> Tuple[torch.Tensor, List[ImageGrid]]:
         """
@@ -213,17 +214,22 @@ class DINOv3Adapter(VisionEncoderAdapter):
     ) -> List[torch.Tensor]:
         """
         Process DINOv3 embeddings with dynamic grid dimensions.
+        
+        Note: The modality projector will handle removing special tokens (CLS + registers)
+        if configured to do so via mp_handle_special_tokens.
         """
         projected = []
         
         for i, grid in enumerate(grids):
             # Get pre-shuffle dimensions for modality projector
+            # These are the patch grid dimensions (Hp, Wp) before pixel shuffle
             Hp, Wp = grid.get_modality_projector_dims(self.config.mp_pixel_shuffle_factor)
             
             # Extract embeddings for this image
             img_embeddings = embeddings[i:i+1]
             
             # Apply modality projector with 2D pixel shuffle
+            # The modality projector will handle special tokens and pixel shuffle
             proj_embd = modality_projector(img_embeddings, gh=Hp, gw=Wp)
             
             projected.append(proj_embd)
