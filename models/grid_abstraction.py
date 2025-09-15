@@ -133,7 +133,7 @@ class SigLIPGrid(ImageGrid):
             # Handle nested lists (e.g., [[12, 16]])
             while isinstance(raw_data, (list, tuple)) and len(raw_data) == 1:
                 raw_data = raw_data[0]
-            
+
             # If we still have a list/tuple with at least 2 elements
             if isinstance(raw_data, (list, tuple)) and len(raw_data) >= 2:
                 # If first element is also a list/tuple, take it
@@ -143,7 +143,7 @@ class SigLIPGrid(ImageGrid):
                 if len(raw_data) >= 2:
                     rows, cols = int(raw_data[0]), int(raw_data[1])
                     return cls(rows=rows, cols=cols, tokens_per_tile=tokens_per_tile)
-            
+
             # If we couldn't extract rows and cols, return default 1x1 grid
             return cls(rows=1, cols=1, tokens_per_tile=tokens_per_tile)
         elif isinstance(raw_data, dict) and "grid" in raw_data:
@@ -192,17 +192,32 @@ class GridFactory:
                 # Handle nested lists (e.g., [[12, 16]])
                 while len(raw_data) == 1 and isinstance(raw_data[0], (list, tuple)):
                     raw_data = raw_data[0]
-                # Ensure we have at least 2 elements and they're not nested
-                if len(raw_data) < 2 or isinstance(raw_data[0], (list, tuple)):
+                # Ensure we have at least 2 elements
+                if len(raw_data) < 2:
                     return DINOv3Grid(
                         Hp=config.mp_pixel_shuffle_factor,
                         Wp=config.mp_pixel_shuffle_factor,
                         Gh=1,
                         Gw=1,
                     )
+                # Check if elements are dicts (from DINOv3 processor)
+                if isinstance(raw_data[0], dict):
+                    # This is a list of dict grids, not a tuple grid
+                    # Return the first one (should only be one for DINOv3)
+                    return DINOv3Grid.from_raw(
+                        raw_data[0], config.mp_pixel_shuffle_factor
+                    )
                 # Convert to integers, handling potential nested values
-                Gh = int(raw_data[0][0] if isinstance(raw_data[0], (list, tuple)) else raw_data[0])
-                Gw = int(raw_data[1][0] if isinstance(raw_data[1], (list, tuple)) else raw_data[1])
+                Gh = int(
+                    raw_data[0][0]
+                    if isinstance(raw_data[0], (list, tuple))
+                    else raw_data[0]
+                )
+                Gw = int(
+                    raw_data[1][0]
+                    if isinstance(raw_data[1], (list, tuple))
+                    else raw_data[1]
+                )
                 Hp = Gh * config.mp_pixel_shuffle_factor
                 Wp = Gw * config.mp_pixel_shuffle_factor
                 return DINOv3Grid(Hp=Hp, Wp=Wp, Gh=Gh, Gw=Gw)

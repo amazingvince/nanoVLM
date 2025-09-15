@@ -139,10 +139,12 @@ def get_image_processor(
         )
 
 
-def get_image_string(tokenizer, splitted_image_counts, mp_image_token_length, config=None):
+def get_image_string(
+    tokenizer, splitted_image_counts, mp_image_token_length, config=None
+):
     """
     Generate image token string based on actual grid configurations.
-    
+
     Args:
         tokenizer: Tokenizer with image_token attribute
         splitted_image_counts: List of tuples (n_h, n_w) or grid info
@@ -150,12 +152,12 @@ def get_image_string(tokenizer, splitted_image_counts, mp_image_token_length, co
         config: VLMConfig for grid factory (optional)
     """
     from models.grid_abstraction import GridFactory
-    
+
     image_string = ""
     for idx, grid_info in enumerate(splitted_image_counts):
         if len(splitted_image_counts) > 1:
             image_string += f"<image: {idx}>"
-        
+
         # Create grid object to get actual token count
         if config is not None:
             grid = GridFactory.create_from_raw(grid_info, config)
@@ -167,7 +169,7 @@ def get_image_string(tokenizer, splitted_image_counts, mp_image_token_length, co
                 token_count = n_h * n_w
             else:
                 token_count = n_h * n_w * mp_image_token_length
-        
+
         # Emit placeholder tokens
         image_string += tokenizer.image_token * token_count
     return image_string

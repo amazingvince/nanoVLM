@@ -125,14 +125,22 @@ class ConstantLengthDataset(IterableDataset):
 
                 # Get actual image token count using grid abstraction
                 image_token_count = 0
-                if "image_grids" in sample and sample["image_grids"] and self.dataset.cfg is not None:
+                if (
+                    "image_grids" in sample
+                    and sample["image_grids"]
+                    and self.dataset.cfg is not None
+                ):
                     for grid_info in sample["image_grids"]:
-                        grid = self.dataset.grid_factory.create_from_raw(grid_info, self.dataset.cfg)
+                        grid = self.dataset.grid_factory.create_from_raw(
+                            grid_info, self.dataset.cfg
+                        )
                         image_token_count += grid.get_token_count()
                 else:
                     # Fallback for backward compatibility
-                    image_token_count = len(sample["images"]) * self.dataset.mp_image_token_length
-                
+                    image_token_count = (
+                        len(sample["images"]) * self.dataset.mp_image_token_length
+                    )
+
                 # Add padding
                 sample["input_ids"] = torch.cat(
                     [

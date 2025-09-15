@@ -83,25 +83,27 @@ class VisionLanguageModel(nn.Module):
                 device=input_ids.device,
             )
             image_grids = []
-        
+
         # Prepare images using encoder adapter
         if image_grids is not None and len(image_grids) > 0:
             # Flatten nested lists if needed
             if isinstance(images, list) and images and isinstance(images[0], list):
                 images = [img for sublist in images for img in sublist]
-            
+
             # Use adapter to prepare images and normalize grids
-            prepared_images, normalized_grids = self.encoder_adapter.prepare_images(images, image_grids)
+            prepared_images, normalized_grids = self.encoder_adapter.prepare_images(
+                images, image_grids
+            )
             prepared_images = prepared_images.to(input_ids.device)
-            
+
             # Process through vision encoder
             image_embd = self.vision_encoder(prepared_images)
-            
+
             # Use adapter to process embeddings through modality projector
             projected = self.encoder_adapter.process_embeddings(
                 image_embd, normalized_grids, self.MP
             )
-            
+
             # Pad projected embeddings to same size before concatenation
             max_seq_len = max(p.shape[1] for p in projected)
             padded_projected = []
@@ -119,19 +121,19 @@ class VisionLanguageModel(nn.Module):
                 # Flatten nested lists if needed
                 if images and isinstance(images[0], list):
                     images = [img for sublist in images for img in sublist]
-                    
+
                 # Stack or concatenate based on dimensions
                 if images and images[0].dim() == 3:
                     images = torch.stack(images, dim=0)
                 elif images:
                     images = torch.cat(images, dim=0)
-            
+
             # Ensure on correct device
             if not isinstance(images, torch.Tensor):
                 images = torch.tensor(images, device=input_ids.device)
             elif images.device != input_ids.device:
                 images = images.to(input_ids.device)
-            
+
             # Process through vision encoder and modality projector
             image_embd = self.vision_encoder(images)
             image_embd = self.MP(image_embd)
@@ -186,25 +188,27 @@ class VisionLanguageModel(nn.Module):
                 device=input_ids.device,
             )
             image_grids = []
-        
+
         # Prepare images using encoder adapter
         if image_grids is not None and len(image_grids) > 0:
             # Flatten nested lists if needed
             if isinstance(images, list) and images and isinstance(images[0], list):
                 images = [img for sublist in images for img in sublist]
-            
+
             # Use adapter to prepare images and normalize grids
-            prepared_images, normalized_grids = self.encoder_adapter.prepare_images(images, image_grids)
+            prepared_images, normalized_grids = self.encoder_adapter.prepare_images(
+                images, image_grids
+            )
             prepared_images = prepared_images.to(input_ids.device)
-            
+
             # Process through vision encoder
             image_embd = self.vision_encoder(prepared_images)
-            
+
             # Use adapter to process embeddings through modality projector
             projected = self.encoder_adapter.process_embeddings(
                 image_embd, normalized_grids, self.MP
             )
-            
+
             # Pad projected embeddings to same size before concatenation
             max_seq_len = max(p.shape[1] for p in projected)
             padded_projected = []
@@ -223,7 +227,7 @@ class VisionLanguageModel(nn.Module):
                     images = [img for sublist in images for img in sublist]
                 if images:
                     images = torch.cat(images, dim=0).to(input_ids.device)
-            
+
             # Process through vision encoder and modality projector
             image_embd = self.vision_encoder(images)
             image_embd = self.MP(image_embd)

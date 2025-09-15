@@ -50,7 +50,7 @@ class DynamicResize(torch.nn.Module):
         # Then round up to nearest multiple of patch_size
         target_short = math.ceil(exact_short / self.p) * self.p
         target_short = max(target_short, self.p)  # just in case
-        
+
         # Additional check: ensure both dimensions are divisible by patch_size
         if target_short % self.p != 0:
             target_short = math.ceil(target_short / self.p) * self.p
