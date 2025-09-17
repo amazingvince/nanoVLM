@@ -1,5 +1,6 @@
 import argparse
 import contextlib
+import logging
 import math
 import os
 import random
@@ -50,6 +51,14 @@ warnings.filterwarnings("ignore", message=".*Length of IterableDataset.*")
 import PIL.PngImagePlugin  # noqa: E402
 
 PIL.PngImagePlugin.MAX_TEXT_CHUNK = 100 * 1024 * 1024
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
 
 def seed_worker(worker_id):
@@ -135,8 +144,38 @@ def get_run_name(train_cfg, vlm_cfg):
     return f"nanoVLM_{vit}_{mp}_{llm}_{num_gpus}_{dataset_size}_{batch_size}_{max_training_steps}_{learning_rate}_{date}"
 
 
-def get_dataloaders(train_cfg, vlm_cfg):
+def validate_num_workers(train_workers, val_workers):
+    """Validate that number of workers doesn't exceed CPU count."""
+    cpu_count = os.cpu_count()
+    total_workers = train_workers + val_workers
+    
+    if cpu_count is None:
+        logger.warning("Could not determine CPU count, skipping worker validation")
+        return
+    
+    if total_workers > cpu_count:
+        logger.warning(
+            f"Total number of workers ({total_workers} = {train_workers} train + {val_workers} val) "
+            f"exceeds CPU count ({cpu_count}). This may cause performance issues. "
+            f"Consider reducing workers with --train_num_workers and --val_num_workers flags."
+        )
+    elif total_workers > cpu_count * 0.8:
+        logger.info(
+            f"Total workers ({total_workers}) is close to CPU count ({cpu_count}). "
+            f"If you experience issues, consider reducing workers."
+        )
+    else:
+        logger.info(
+            f"Using {train_workers} train workers and {val_workers} val workers "
+            f"(total: {total_workers}/{cpu_count} CPUs)"
+        )
+
+
+def get_dataloaders(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
     print(f"Getting dataloaders from {train_cfg.train_dataset_path}")
+    
+    # Validate worker configuration
+    validate_num_workers(train_num_workers, val_num_workers)
     # Create datasets
     image_processor = get_image_processor(
         vlm_cfg.max_img_size, vlm_cfg.vit_img_size, vlm_cfg.resize_to_max_side_len
@@ -251,7 +290,7 @@ def get_dataloaders(train_cfg, vlm_cfg):
         train_dataset,
         batch_size=train_cfg.batch_size,  # =per device BS in DDP
         collate_fn=vqa_collator,
-        num_workers=4,
+        num_workers=train_num_workers,
         pin_memory=True,
         persistent_workers=True,
         drop_last=True,
@@ -271,7 +310,7 @@ def get_dataloaders(train_cfg, vlm_cfg):
         batch_size=train_cfg.batch_size,
         sampler=val_sampler,
         collate_fn=vqa_collator,
-        num_workers=2,
+        num_workers=val_num_workers,
         pin_memory=True,
         persistent_workers=True,
         drop_last=True,
@@ -308,8 +347,8 @@ def get_lr(it, max_lr, max_steps):
     return min_lr + coeff * (max_lr - min_lr)
 
 
-def train(train_cfg, vlm_cfg):
-    train_loader, val_loader = get_dataloaders(train_cfg, vlm_cfg)
+def train(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
+    train_loader, val_loader = get_dataloaders(train_cfg, vlm_cfg, train_num_workers, val_num_workers)
 
     if is_dist():
         print("Rank", get_rank(), "Waiting for all workers to get dataloaders...")
@@ -894,6 +933,18 @@ def get_parser() -> argparse.ArgumentParser:
         type=int,
         help="Minimum formatting rating of images per sample",
     )
+    parser.add_argument(
+        "--train_num_workers",
+        type=int,
+        default=4,
+        help="Number of workers for training dataloader (default: 4)",
+    )
+    parser.add_argument(
+        "--val_num_workers",
+        type=int,
+        default=2,
+        help="Number of workers for validation dataloader (default: 2)",
+    )
 
     return parser
 
@@ -905,6 +956,10 @@ def main():
 
     vlm_cfg = config.VLMConfig()
     train_cfg = config.TrainConfig()
+    
+    # Extract num_workers from args (they'll be passed to train function)
+    train_num_workers = args.train_num_workers
+    val_num_workers = args.val_num_workers
 
     if args.lr_mp is not None:
         train_cfg.lr_mp = args.lr_mp
@@ -944,7 +999,7 @@ def main():
         print("--- Train Config ---")
         print(train_cfg)
 
-    train(train_cfg, vlm_cfg)
+    train(train_cfg, vlm_cfg, train_num_workers, val_num_workers)
 
     if is_dist():
         destroy_dist()
