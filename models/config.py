@@ -37,7 +37,7 @@ class VLMConfig:
     lm_model_type: str = (
         "HuggingFaceTB/SmolLM2-360M-Instruct"  #'HuggingFaceTB/SmolLM2-135M' #
     )
-    lm_tokenizer: str = "HuggingFaceTB/SmolLM2-360M-Instruct"
+    lm_tokenizer: str = lm_model_type # "HuggingFaceTB/SmolLM2-360M-Instruct"
     lm_chat_template: str = "{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}"
 
     mp_pixel_shuffle_factor: int = 4
@@ -133,14 +133,14 @@ class TrainConfig:
     max_grad_norm: float = 1.0
     eval_in_epochs: bool = True
     eval_interval: int = 500
-    stats_log_interval: int = 100
+    stats_log_interval: int = 10
     max_training_steps: int = 80100
     max_images_per_example: int = 8
     max_images_per_knapsack: int = 36
     max_sample_length: int = 8192
     compile: bool = False
     resume_from_vlm_checkpoint: bool = False  # Indicate if the training should be resumed from a checkpoint of the whole VLM or you want to start from scratch
-    train_dataset_path: str = "/fsx/luis_wiedmann/datasets/asterix_rated"
+    train_dataset_path: str = 'HuggingFaceM4/the_cauldron'
     train_dataset_name: tuple[str, ...] = (
         "all",
     )  # ('allava_laion', 'allava_vflan', 'cambrian(filtered)_processed', 'LLaVA_Instruct_150K', 'mmevol', 'sharegpt4o', 'sharegpt4v(coco)', 'sharegpt4v(knowledge)', 'sharegpt4v(llava)', 'sharegpt4v(sam)') # 'vision_flan(filtered)', 'lvis_instruct4v',
@@ -148,7 +148,7 @@ class TrainConfig:
     image_correspondence_min_rating: int = 1
     visual_dependency_min_rating: int = 1
     formatting_min_rating: int = 1
-    wandb_entity: str = "HuggingFace"  # Indicate the entity to log to in wandb
+    wandb_entity: str = None  # Indicate the entity to log to in wandb
     log_wandb: bool = True
     use_lmms_eval: bool = True  # Use lmms-eval for evaluation
     lmms_eval_tasks: str = "mmstar,mmmu,ocrbench,textvqa,docvqa,scienceqa,mme,infovqa"  # Pass additional task as one string, seperated by commas without spaces (e.g. 'mmstar,mmmu,ocrbench')
