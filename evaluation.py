@@ -16,19 +16,19 @@ import yaml
 
 warnings.simplefilter("ignore", category=DeprecationWarning)
 
-import logging
-from typing import Union
+import logging  # noqa: E402
+from typing import Union  # noqa: E402
 
-from accelerate import Accelerator
-from accelerate.utils import InitProcessGroupKwargs
-from lmms_eval import evaluator, utils
-from lmms_eval.evaluator import request_caching_arg_to_dict
-from lmms_eval.loggers import EvaluationTracker, WandbLogger
-from lmms_eval.tasks import TaskManager
-from lmms_eval.utils import make_table, simple_parse_args_string
-from loguru import logger as eval_logger
+from accelerate import Accelerator  # noqa: E402
+from accelerate.utils import InitProcessGroupKwargs  # noqa: E402
+from lmms_eval import evaluator, utils  # noqa: E402
+from lmms_eval.evaluator import request_caching_arg_to_dict  # noqa: E402
+from lmms_eval.loggers import EvaluationTracker, WandbLogger  # noqa: E402
+from lmms_eval.tasks import TaskManager  # noqa: E402
+from lmms_eval.utils import make_table, simple_parse_args_string  # noqa: E402
+from loguru import logger as eval_logger  # noqa: E402
 
-from eval.lmms_eval_wrapper import NanoVLMWrapper
+from eval.lmms_eval_wrapper import NanoVLMWrapper  # noqa: E402
 
 
 def _int_or_none_list_arg_type(

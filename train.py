@@ -31,23 +31,23 @@ PG_CPU = None
 
 # Otherwise, the tokenizer will throw a warning
 
-import models.config as config
-from data.advanced_datasets import ConstantLengthDataset
-from data.collators import VQACollator
-from data.data_utils import synchronized_dataloader_step
-from data.datasets import VQADataset
-from data.processors import get_image_processor, get_tokenizer
-from models.vision_language_model import VisionLanguageModel
+import models.config as config  # noqa: E402
+from data.advanced_datasets import ConstantLengthDataset  # noqa: E402
+from data.collators import VQACollator  # noqa: E402
+from data.data_utils import synchronized_dataloader_step  # noqa: E402
+from data.datasets import VQADataset  # noqa: E402
+from data.processors import get_image_processor, get_tokenizer  # noqa: E402
+from models.vision_language_model import VisionLanguageModel  # noqa: E402
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
-import warnings
+import warnings  # noqa: E402
 
 warnings.filterwarnings("ignore", message=".*Length of IterableDataset.*")
 
 # Fix for "Decompressed data too large" error with certain PNGs
-import PIL.PngImagePlugin
+import PIL.PngImagePlugin  # noqa: E402
 
 PIL.PngImagePlugin.MAX_TEXT_CHUNK = 100 * 1024 * 1024
 

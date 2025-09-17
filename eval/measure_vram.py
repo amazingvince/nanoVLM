@@ -9,13 +9,13 @@ torch.manual_seed(0)
 if torch.cuda.is_available():
     torch.cuda.manual_seed_all(0)
 
-import os
+import os  # noqa: E402
 
-import models.config as config
-from data.collators import VQACollator
-from data.datasets import VQADataset
-from data.processors import get_image_processor, get_tokenizer
-from models.vision_language_model import VisionLanguageModel
+import models.config as config  # noqa: E402
+from data.collators import VQACollator  # noqa: E402
+from data.datasets import VQADataset  # noqa: E402
+from data.processors import get_image_processor, get_tokenizer  # noqa: E402
+from models.vision_language_model import VisionLanguageModel  # noqa: E402
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 

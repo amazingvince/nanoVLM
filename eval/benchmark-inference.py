@@ -5,10 +5,10 @@ torch.manual_seed(0)
 if torch.cuda.is_available():
     torch.cuda.manual_seed_all(0)
 
-from torch.utils import benchmark
+from torch.utils import benchmark  # noqa: E402
 
-from data.processors import get_image_processor, get_tokenizer
-from models.vision_language_model import VisionLanguageModel
+from data.processors import get_image_processor, get_tokenizer  # noqa: E402
+from models.vision_language_model import VisionLanguageModel  # noqa: E402
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
