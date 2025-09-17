@@ -1,4 +1,5 @@
 import argparse
+
 import torch
 from PIL import Image
 
@@ -6,8 +7,9 @@ torch.manual_seed(0)
 if torch.cuda.is_available():
     torch.cuda.manual_seed_all(0)
 
+from data.processors import (get_image_processor, get_image_string,
+                             get_tokenizer)
 from models.vision_language_model import VisionLanguageModel
-from data.processors import get_tokenizer, get_image_processor, get_image_string
 
 
 def parse_args():

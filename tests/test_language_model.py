@@ -1,7 +1,10 @@
-import torch
 import unittest
-from models.language_model import LanguageModel
 from types import SimpleNamespace
+
+import torch
+
+from models.language_model import LanguageModel
+
 
 class TestLanguageModel(unittest.TestCase):
     def setUp(self):

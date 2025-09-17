@@ -1,8 +1,10 @@
+import logging
+
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
+
 from data.processors import get_image_string
-import logging
 
 
 class BaseDataset(Dataset):

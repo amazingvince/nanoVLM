@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
+import argparse
+import glob
 import json
 import os
 import sys
-import glob
-import argparse
+
 import matplotlib.pyplot as plt
 import pandas as pd
 

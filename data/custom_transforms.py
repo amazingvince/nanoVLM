@@ -1,9 +1,10 @@
 import math
-import torch
-from torchvision.transforms.functional import resize, InterpolationMode
-from einops import rearrange
 from typing import Tuple, Union
+
+import torch
+from einops import rearrange
 from PIL import Image
+from torchvision.transforms.functional import InterpolationMode, resize
 
 
 class DynamicResize(torch.nn.Module):

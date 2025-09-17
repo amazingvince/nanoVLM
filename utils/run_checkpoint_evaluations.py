@@ -1,16 +1,18 @@
 ### Only works in nanoVLM/ directory
 
 import argparse
-import time
-import os
 import json
+import os
+import time
+from pathlib import Path
+from typing import Dict, List, Optional, Set, Tuple
+
 import torch
 import torch.distributed as dist
-from pathlib import Path
-from typing import List, Optional, Dict, Set, Tuple
+from torch.nn.parallel import DistributedDataParallel
+
 from models.vision_language_model import VisionLanguageModel
 
-from torch.nn.parallel import DistributedDataParallel
 
 def init_dist():
     local_rank = int(os.environ.get('LOCAL_RANK', 0))
@@ -358,7 +360,7 @@ def orchestrate_evaluations(
             continue
 
     if is_master():
-        print(f"\n✓ Evaluation orchestration complete!")
+        print("\n✓ Evaluation orchestration complete!")
 
 
 def main():

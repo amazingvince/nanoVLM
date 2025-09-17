@@ -1,7 +1,7 @@
-from transformers import AutoTokenizer
 import torchvision.transforms as transforms
+from transformers import AutoTokenizer
 
-from data.custom_transforms import DynamicResize, SplitImage, GlobalAndSplitImages
+from data.custom_transforms import (DynamicResize, GlobalAndSplitImages)
 
 TOKENIZERS_CACHE = {}
 

@@ -1,9 +1,11 @@
 import argparse
-import os
 import json
+import os
+
 import torch
+
 from models.vision_language_model import VisionLanguageModel
-import models.config as config
+
 
 def main():
     parser = argparse.ArgumentParser(description="Run lmms-eval on a model checkpoint.")

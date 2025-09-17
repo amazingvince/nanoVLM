@@ -1,21 +1,23 @@
-import os
-import math
-import time
-import torch
-import wandb
-import numpy
-import random
 import argparse
 import contextlib
+import math
+import os
+import random
 import subprocess
-import torch.optim as optim
-from statistics import mean
+import time
 from dataclasses import asdict
 from datetime import timedelta
+from statistics import mean
+
+import numpy
+import torch
 import torch.distributed as dist
+import torch.optim as optim
+import wandb
+from datasets import (concatenate_datasets, get_dataset_config_names,
+                      load_dataset, load_from_disk)
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
-from datasets import load_dataset, concatenate_datasets, get_dataset_config_names, load_from_disk
 
 torch.manual_seed(0)
 if torch.cuda.is_available():
@@ -23,25 +25,26 @@ if torch.cuda.is_available():
 
 PG_CPU = None
 
-from data.datasets import VQADataset
-from data.collators import VQACollator
-from data.data_utils import synchronized_dataloader_step
-from data.advanced_datasets import ConstantLengthDataset
-from data.processors import get_image_processor, get_tokenizer
+#Otherwise, the tokenizer will throw a warning
 
 import models.config as config
+from data.advanced_datasets import ConstantLengthDataset
+from data.collators import VQACollator
+from data.data_utils import synchronized_dataloader_step
+from data.datasets import VQADataset
+from data.processors import get_image_processor, get_tokenizer
 from models.vision_language_model import VisionLanguageModel
 
-#Otherwise, the tokenizer will throw a warning
-import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 import warnings
+
 warnings.filterwarnings("ignore", message=".*Length of IterableDataset.*")
 
 # Fix for "Decompressed data too large" error with certain PNGs
 import PIL.PngImagePlugin
+
 PIL.PngImagePlugin.MAX_TEXT_CHUNK = 100 * 1024 * 1024
 
 def seed_worker(worker_id):
