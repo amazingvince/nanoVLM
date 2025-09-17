@@ -17,6 +17,7 @@ class DynamicResize(torch.nn.Module):
     Works on PIL Images, (C, H, W) tensors, or (B, C, H, W) tensors.
     Returns the same type it receives.
     """
+
     def __init__(
         self,
         patch_size: int,
@@ -37,7 +38,11 @@ class DynamicResize(torch.nn.Module):
         long, short = (w, h) if w >= h else (h, w)
 
         # 1) upscale long side
-        target_long = self.m if self.resize_to_max_side_len else min(self.m, math.ceil(long / self.p) * self.p)
+        target_long = (
+            self.m
+            if self.resize_to_max_side_len
+            else min(self.m, math.ceil(long / self.p) * self.p)
+        )
 
         # 2) scale factor
         scale = target_long / long
@@ -57,16 +62,14 @@ class DynamicResize(torch.nn.Module):
 
         if not torch.is_tensor(img):
             raise TypeError(
-                "DynamicResize expects a PIL Image or a torch.Tensor; "
-                f"got {type(img)}"
+                f"DynamicResize expects a PIL Image or a torch.Tensor; got {type(img)}"
             )
 
         # tensor path ---------------------------------------------------------
         batched = img.ndim == 4
         if img.ndim not in (3, 4):
             raise ValueError(
-                "Tensor input must have shape (C,H,W) or (B,C,H,W); "
-                f"got {img.shape}"
+                f"Tensor input must have shape (C,H,W) or (B,C,H,W); got {img.shape}"
             )
 
         # operate batch-wise
@@ -85,21 +88,25 @@ class SplitImage(torch.nn.Module):
         patches: (B·n_h·n_w, C, patch_size, patch_size)
         grid:    (n_h, n_w)  - number of patches along H and W
     """
+
     def __init__(self, patch_size: int) -> None:
         super().__init__()
         self.p = patch_size
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, Tuple[int, int]]:
-        if x.ndim == 3:            # add batch dim if missing
+        if x.ndim == 3:  # add batch dim if missing
             x = x.unsqueeze(0)
 
         b, c, h, w = x.shape
         if h % self.p or w % self.p:
-            raise ValueError(f'Image size {(h,w)} not divisible by patch_size {self.p}')
+            raise ValueError(
+                f"Image size {(h, w)} not divisible by patch_size {self.p}"
+            )
 
         n_h, n_w = h // self.p, w // self.p
-        patches = rearrange(x, 'b c (nh ph) (nw pw) -> (b nh nw) c ph pw',
-                            ph=self.p, pw=self.p)
+        patches = rearrange(
+            x, "b c (nh ph) (nw pw) -> (b nh nw) c ph pw", ph=self.p, pw=self.p
+        )
         return patches, (n_h, n_w)
 
 

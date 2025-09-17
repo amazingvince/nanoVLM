@@ -9,6 +9,7 @@ from torch.utils.data import IterableDataset, get_worker_info
 
 random.seed(42)  # Set the random seed to the meaning of life for good luck
 
+
 class ConstantLengthDataset(IterableDataset):
     def __init__(
         self,
@@ -155,12 +156,14 @@ class ConstantLengthDataset(IterableDataset):
             packed_group = []
             for g in groups:
                 packed = self._pack_one_group(g, buffer, self.seq_length)
-                packed_group.append({
-                    "input_ids":      packed[0],
-                    "labels":         packed[1],
-                    "attention_mask": packed[2],
-                    "images":         packed[3],
-                })
+                packed_group.append(
+                    {
+                        "input_ids": packed[0],
+                        "labels": packed[1],
+                        "attention_mask": packed[2],
+                        "images": packed[3],
+                    }
+                )
 
             if packed_group:
                 queue.put(packed_group)
@@ -216,7 +219,9 @@ class ConstantLengthDataset(IterableDataset):
             knapsack_image_counts[suitable_knapsack] += item_image_count
 
         # remove the completely empty bags that the +delta heuristic created
-        random.shuffle(knapsack_groups)  # Knapsacks are semi-ordered after packing, thanks Luis for noticing!
+        random.shuffle(
+            knapsack_groups
+        )  # Knapsacks are semi-ordered after packing, thanks Luis for noticing!
         return [g for g in knapsack_groups if g]
 
     def _pack_one_group(self, group_indices, batch, max_len):
