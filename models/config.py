@@ -37,7 +37,7 @@ class VLMConfig:
     lm_model_type: str = (
         "HuggingFaceTB/SmolLM2-135M-Instruct"  #'HuggingFaceTB/SmolLM2-135M' #
     )
-    lm_tokenizer: str = lm_model_type # "HuggingFaceTB/SmolLM2-360M-Instruct"
+    lm_tokenizer: str = lm_model_type  # "HuggingFaceTB/SmolLM2-360M-Instruct"
     lm_chat_template: str = "{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}"
 
     mp_pixel_shuffle_factor: int = 4
@@ -141,7 +141,7 @@ class TrainConfig:
     max_sample_length: int = 2048
     compile: bool = False
     resume_from_vlm_checkpoint: bool = False  # Indicate if the training should be resumed from a checkpoint of the whole VLM or you want to start from scratch
-    train_dataset_path: str = 'HuggingFaceM4/the_cauldron'
+    train_dataset_path: str = "HuggingFaceM4/the_cauldron"
     train_dataset_name: tuple[str, ...] = (
         "all",
     )  # ('allava_laion', 'allava_vflan', 'cambrian(filtered)_processed', 'LLaVA_Instruct_150K', 'mmevol', 'sharegpt4o', 'sharegpt4v(coco)', 'sharegpt4v(knowledge)', 'sharegpt4v(llava)', 'sharegpt4v(sam)') # 'vision_flan(filtered)', 'lvis_instruct4v',
@@ -152,7 +152,9 @@ class TrainConfig:
     wandb_entity: str = None  # Indicate the entity to log to in wandb
     log_wandb: bool = True
     use_lmms_eval: bool = True  # Use lmms-eval for evaluation
-    use_slurm_for_eval: bool = False  # Submit eval jobs to SLURM (requires SLURM cluster)
+    use_slurm_for_eval: bool = (
+        False  # Submit eval jobs to SLURM (requires SLURM cluster)
+    )
     lmms_eval_tasks: str = "mmstar,mmmu,ocrbench,textvqa,docvqa,scienceqa,mme,infovqa"  # Pass additional task as one string, seperated by commas without spaces (e.g. 'mmstar,mmmu,ocrbench')
     lmms_eval_limit: float = None
     lmms_eval_batch_size: int = 64

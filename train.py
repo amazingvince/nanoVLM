@@ -50,6 +50,7 @@ warnings.filterwarnings("ignore", message=".*Length of IterableDataset.*")
 
 # Suppress transformers max length warnings (we handle this properly)
 import transformers  # noqa: E402
+
 transformers.logging.set_verbosity_error()
 
 # Fix for "Decompressed data too large" error with certain PNGs
@@ -811,27 +812,39 @@ def train(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
                     current_lrs = []
                     param_group_idx = 0
                     if train_cfg.lr_mp > 0:
-                        current_lrs.append(optimizer.param_groups[param_group_idx]["lr"])
+                        current_lrs.append(
+                            optimizer.param_groups[param_group_idx]["lr"]
+                        )
                         param_group_idx += 1
                     if train_cfg.lr_vision_backbone > 0:
-                        current_lrs.append(optimizer.param_groups[param_group_idx]["lr"])
+                        current_lrs.append(
+                            optimizer.param_groups[param_group_idx]["lr"]
+                        )
                         param_group_idx += 1
                     if train_cfg.lr_language_backbone > 0:
-                        current_lrs.append(optimizer.param_groups[param_group_idx]["lr"])
-                    
+                        current_lrs.append(
+                            optimizer.param_groups[param_group_idx]["lr"]
+                        )
+
                     # Use the maximum learning rate for display
                     display_lr = max(current_lrs) if current_lrs else 0.0
-                    
+
                     # Calculate current tokens per second
                     current_tokens_per_sec = (
-                        mean(accumulated_stats["tokens_per_second"][-10:])  # Average of last 10 measurements
-                        if accumulated_stats["tokens_per_second"] 
+                        mean(
+                            accumulated_stats["tokens_per_second"][-10:]
+                        )  # Average of last 10 measurements
+                        if accumulated_stats["tokens_per_second"]
                         else tokens_per_second
                     )
-                    
+
                     # Get gradient norm if available
-                    grad_norm_str = f"{grad_norm:.3f}" if train_cfg.max_grad_norm is not None else "N/A"
-                    
+                    grad_norm_str = (
+                        f"{grad_norm:.3f}"
+                        if train_cfg.max_grad_norm is not None
+                        else "N/A"
+                    )
+
                     print(
                         f"Step {global_step:5d}/{train_cfg.max_training_steps} | "
                         f"Loss: {batch_loss_gathered:.4f} | "
