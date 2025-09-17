@@ -7,6 +7,10 @@ torch.manual_seed(0)
 if torch.cuda.is_available():
     torch.cuda.manual_seed_all(0)
 
+# Suppress transformers max length warnings (we handle this properly)
+import transformers  # noqa: E402
+transformers.logging.set_verbosity_error()
+
 from data.processors import get_image_processor, get_image_string, get_tokenizer  # noqa: E402
 from models.vision_language_model import VisionLanguageModel  # noqa: E402
 

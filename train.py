@@ -48,6 +48,10 @@ import warnings  # noqa: E402
 
 warnings.filterwarnings("ignore", message=".*Length of IterableDataset.*")
 
+# Suppress transformers max length warnings (we handle this properly)
+import transformers  # noqa: E402
+transformers.logging.set_verbosity_error()
+
 # Fix for "Decompressed data too large" error with certain PNGs
 import PIL.PngImagePlugin  # noqa: E402
 
