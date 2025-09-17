@@ -152,6 +152,7 @@ class TrainConfig:
     wandb_entity: str = None  # Indicate the entity to log to in wandb
     log_wandb: bool = True
     use_lmms_eval: bool = True  # Use lmms-eval for evaluation
+    use_slurm_for_eval: bool = False  # Submit eval jobs to SLURM (requires SLURM cluster)
     lmms_eval_tasks: str = "mmstar,mmmu,ocrbench,textvqa,docvqa,scienceqa,mme,infovqa"  # Pass additional task as one string, seperated by commas without spaces (e.g. 'mmstar,mmmu,ocrbench')
     lmms_eval_limit: float = None
     lmms_eval_batch_size: int = 64

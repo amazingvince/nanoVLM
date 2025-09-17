@@ -651,11 +651,12 @@ def train(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
 
                         if (
                             train_cfg.use_lmms_eval
+                            and train_cfg.use_slurm_for_eval
                             and global_step % (train_cfg.eval_interval * 2) == 0
                         ):
-                            # Submit evaluation job
+                            # Submit evaluation job to SLURM
                             cmd = f"sbatch eval.slurm {checkpoint_path_step} {global_step} {run_name} {train_cfg.lmms_eval_limit} {train_cfg.lmms_eval_tasks} {train_cfg.lmms_eval_batch_size}"
-                            print(f"Submitting evaluation job: {cmd}")
+                            print(f"Submitting evaluation job to SLURM: {cmd}")
                             subprocess.run(cmd, shell=True)
 
                     if avg_val_loss < best_val_loss:
@@ -993,6 +994,11 @@ def get_parser() -> argparse.ArgumentParser:
         default=25,
         help="Interval for logging training progress to console (default: 25)",
     )
+    parser.add_argument(
+        "--use_slurm_for_eval",
+        action="store_true",
+        help="Submit evaluation jobs to SLURM cluster (default: False)",
+    )
 
     return parser
 
@@ -1033,6 +1039,8 @@ def main():
         train_cfg.formatting_min_rating = args.formatting_min_rating
     if args.console_log_interval is not None:
         train_cfg.console_log_interval = args.console_log_interval
+    if args.use_slurm_for_eval:
+        train_cfg.use_slurm_for_eval = True
 
     if args.resume_from_vlm_checkpoint and args.vlm_checkpoint_path is not None:
         train_cfg.resume_from_vlm_checkpoint = True
