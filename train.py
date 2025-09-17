@@ -1041,9 +1041,9 @@ def main():
 
     if is_master():
         print("--- VLM Config ---")
-        json.dumps(asdict(vlm_cfg), indent=2)
+        print(json.dumps(asdict(vlm_cfg), indent=2))
         print("--- Train Config ---")
-        json.dumps(asdict(train_cfg), indent=2)
+        print(json.dumps(asdict(train_cfg), indent=2))
 
     train(train_cfg, vlm_cfg, train_num_workers, val_num_workers)
 
