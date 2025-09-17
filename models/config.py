@@ -31,11 +31,11 @@ class VLMConfig:
     lm_dropout: float = 0.0
     lm_n_blocks: int = 32
     lm_attn_scaling: float = 1.0
-    lm_max_length: int = 8192
+    lm_max_length: int = 2048
     lm_use_tokens: bool = False  # Decide if the LM expects tokens or embeddings as input (if using as a backbone for the VLM, set to False)
     lm_tie_weights: bool = True  # Decide if you want to tie the LM Head weight to the token embedding weights
     lm_model_type: str = (
-        "HuggingFaceTB/SmolLM2-360M-Instruct"  #'HuggingFaceTB/SmolLM2-135M' #
+        "HuggingFaceTB/SmolLM2-135M-Instruct"  #'HuggingFaceTB/SmolLM2-135M' #
     )
     lm_tokenizer: str = lm_model_type # "HuggingFaceTB/SmolLM2-360M-Instruct"
     lm_chat_template: str = "{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}"
@@ -43,7 +43,7 @@ class VLMConfig:
     mp_pixel_shuffle_factor: int = 4
     mp_image_token_length: int = 64
 
-    max_img_size: int = 2048
+    max_img_size: int = 1024
     resize_to_max_side_len: bool = True
 
     vlm_extra_tokens: dict[str, str] = field(
@@ -134,10 +134,11 @@ class TrainConfig:
     eval_in_epochs: bool = True
     eval_interval: int = 500
     stats_log_interval: int = 10
+    console_log_interval: int = 25
     max_training_steps: int = 80100
     max_images_per_example: int = 8
     max_images_per_knapsack: int = 36
-    max_sample_length: int = 8192
+    max_sample_length: int = 2048
     compile: bool = False
     resume_from_vlm_checkpoint: bool = False  # Indicate if the training should be resumed from a checkpoint of the whole VLM or you want to start from scratch
     train_dataset_path: str = 'HuggingFaceM4/the_cauldron'

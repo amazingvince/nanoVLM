@@ -800,6 +800,41 @@ def train(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
                 else:
                     batch_loss_gathered = batch_loss
 
+                # MASTER ONLY: Console logging at specified interval
+                if global_step % train_cfg.console_log_interval == 0 and is_master():
+                    # Get current learning rates
+                    current_lrs = []
+                    param_group_idx = 0
+                    if train_cfg.lr_mp > 0:
+                        current_lrs.append(optimizer.param_groups[param_group_idx]["lr"])
+                        param_group_idx += 1
+                    if train_cfg.lr_vision_backbone > 0:
+                        current_lrs.append(optimizer.param_groups[param_group_idx]["lr"])
+                        param_group_idx += 1
+                    if train_cfg.lr_language_backbone > 0:
+                        current_lrs.append(optimizer.param_groups[param_group_idx]["lr"])
+                    
+                    # Use the maximum learning rate for display
+                    display_lr = max(current_lrs) if current_lrs else 0.0
+                    
+                    # Calculate current tokens per second
+                    current_tokens_per_sec = (
+                        mean(accumulated_stats["tokens_per_second"][-10:])  # Average of last 10 measurements
+                        if accumulated_stats["tokens_per_second"] 
+                        else tokens_per_second
+                    )
+                    
+                    # Get gradient norm if available
+                    grad_norm_str = f"{grad_norm:.3f}" if train_cfg.max_grad_norm is not None else "N/A"
+                    
+                    print(
+                        f"Step {global_step:5d}/{train_cfg.max_training_steps} | "
+                        f"Loss: {batch_loss_gathered:.4f} | "
+                        f"LR: {display_lr:.2e} | "
+                        f"Grad: {grad_norm_str} | "
+                        f"Tokens/s: {current_tokens_per_sec:,.0f}"
+                    )
+
                 # MASTER ONLY: Log to wandb
                 if train_cfg.log_wandb and is_master():
                     run.log(
@@ -948,6 +983,12 @@ def get_parser() -> argparse.ArgumentParser:
         default=2,
         help="Number of workers for validation dataloader",
     )
+    parser.add_argument(
+        "--console_log_interval",
+        type=int,
+        default=25,
+        help="Interval for logging training progress to console (default: 25)",
+    )
 
     return parser
 
@@ -986,6 +1027,8 @@ def main():
         train_cfg.visual_dependency_min_rating = args.visual_dependency_min_rating
     if args.formatting_min_rating is not None:
         train_cfg.formatting_min_rating = args.formatting_min_rating
+    if args.console_log_interval is not None:
+        train_cfg.console_log_interval = args.console_log_interval
 
     if args.resume_from_vlm_checkpoint and args.vlm_checkpoint_path is not None:
         train_cfg.resume_from_vlm_checkpoint = True
