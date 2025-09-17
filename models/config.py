@@ -31,19 +31,19 @@ class VLMConfig:
     lm_dropout: float = 0.0
     lm_n_blocks: int = 32
     lm_attn_scaling: float = 1.0
-    lm_max_length: int = 2048
+    lm_max_length: int = 2048 # nanoVLM main uses 8192 (too memory intensive)
     lm_use_tokens: bool = False  # Decide if the LM expects tokens or embeddings as input (if using as a backbone for the VLM, set to False)
     lm_tie_weights: bool = True  # Decide if you want to tie the LM Head weight to the token embedding weights
     lm_model_type: str = (
-        "HuggingFaceTB/SmolLM2-135M-Instruct"  #'HuggingFaceTB/SmolLM2-135M' #
+        "HuggingFaceTB/SmolLM2-360M-Instruct"  # try 'HuggingFaceTB/SmolLM2-135M' if OOM
     )
-    lm_tokenizer: str = lm_model_type  # "HuggingFaceTB/SmolLM2-360M-Instruct"
+    lm_tokenizer: str = lm_model_type
     lm_chat_template: str = "{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}"
 
     mp_pixel_shuffle_factor: int = 4
     mp_image_token_length: int = 64
 
-    max_img_size: int = 1024
+    max_img_size: int = 1024 # nanoVLM main uses 2048 (too memory intensive)
     resize_to_max_side_len: bool = True
 
     vlm_extra_tokens: dict[str, str] = field(
