@@ -611,8 +611,9 @@ def train(train_cfg, vlm_cfg):
             run.summary["avg_time_per_sample"] = avg_time_per_sample
             run.finish()
 
-def main():
-    global PG_CPU
+
+def get_parser() -> argparse.ArgumentParser:
+    """handler/helper for argparse CLI"""
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter, epilog="See models/config.py for defaults & additional configuration options.",)
     parser.add_argument('--lr_mp', type=float, help='Learning rate for the mapping network')
     parser.add_argument('--lr_vision_backbone', type=float, help='Learning rate for the vision backbone')
@@ -628,7 +629,12 @@ def main():
     parser.add_argument('--visual_dependency_min_rating', type=int, help='Minimum visual dependency rating of images per sample')
     parser.add_argument('--formatting_min_rating', type=int, help='Minimum formatting rating of images per sample')
 
-    args = parser.parse_args()
+    return parser
+
+def main():
+    global PG_CPU
+
+    args = get_parser().parse_args()
 
     vlm_cfg = config.VLMConfig()
     train_cfg = config.TrainConfig()
