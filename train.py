@@ -1,5 +1,6 @@
 import argparse
 import contextlib
+import json
 import logging
 import math
 import os
@@ -55,8 +56,8 @@ PIL.PngImagePlugin.MAX_TEXT_CHUNK = 100 * 1024 * 1024
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger(__name__)
 
@@ -148,11 +149,11 @@ def validate_num_workers(train_workers, val_workers):
     """Validate that number of workers doesn't exceed CPU count."""
     cpu_count = os.cpu_count()
     total_workers = train_workers + val_workers
-    
+
     if cpu_count is None:
         logger.warning("Could not determine CPU count, skipping worker validation")
         return
-    
+
     if total_workers > cpu_count:
         logger.warning(
             f"Total number of workers ({total_workers} = {train_workers} train + {val_workers} val) "
@@ -173,7 +174,7 @@ def validate_num_workers(train_workers, val_workers):
 
 def get_dataloaders(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
     print(f"Getting dataloaders from {train_cfg.train_dataset_path}")
-    
+
     # Validate worker configuration
     validate_num_workers(train_num_workers, val_num_workers)
     # Create datasets
@@ -348,7 +349,9 @@ def get_lr(it, max_lr, max_steps):
 
 
 def train(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
-    train_loader, val_loader = get_dataloaders(train_cfg, vlm_cfg, train_num_workers, val_num_workers)
+    train_loader, val_loader = get_dataloaders(
+        train_cfg, vlm_cfg, train_num_workers, val_num_workers
+    )
 
     if is_dist():
         print("Rank", get_rank(), "Waiting for all workers to get dataloaders...")
@@ -900,7 +903,7 @@ def get_parser() -> argparse.ArgumentParser:
         help="Path to the VLM checkpoint for loading or saving",
     )
     parser.add_argument(
-        "--compile", type=bool, help="Use torch.compile to optimize the model"
+        "-c", "--compile", type=bool, help="Use torch.compile to optimize the model"
     )
     parser.add_argument("--log_wandb", type=bool, help="Log to wandb")
     parser.add_argument(
@@ -937,13 +940,13 @@ def get_parser() -> argparse.ArgumentParser:
         "--train_num_workers",
         type=int,
         default=4,
-        help="Number of workers for training dataloader (default: 4)",
+        help="Number of workers for training dataloader",
     )
     parser.add_argument(
         "--val_num_workers",
         type=int,
         default=2,
-        help="Number of workers for validation dataloader (default: 2)",
+        help="Number of workers for validation dataloader",
     )
 
     return parser
@@ -956,7 +959,7 @@ def main():
 
     vlm_cfg = config.VLMConfig()
     train_cfg = config.TrainConfig()
-    
+
     # Extract num_workers from args (they'll be passed to train function)
     train_num_workers = args.train_num_workers
     val_num_workers = args.val_num_workers
@@ -995,9 +998,9 @@ def main():
 
     if is_master():
         print("--- VLM Config ---")
-        print(vlm_cfg)
+        json.dumps(asdict(vlm_cfg), indent=2)
         print("--- Train Config ---")
-        print(train_cfg)
+        json.dumps(asdict(train_cfg), indent=2)
 
     train(train_cfg, vlm_cfg, train_num_workers, val_num_workers)
 
