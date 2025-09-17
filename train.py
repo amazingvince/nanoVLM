@@ -437,7 +437,7 @@ def train(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
         for p in list(model.decoder.parameters()):
             p.requires_grad = False
 
-    optimizer = optim.AdamW(param_groups)
+    optimizer = optim.AdamW(param_groups, fused=True)
     all_params = [p for group in optimizer.param_groups for p in group["params"]]
 
     device = (
