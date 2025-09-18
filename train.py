@@ -1105,12 +1105,11 @@ def main():
         train_cfg.use_slurm_for_eval = True
     if args.lm_model_type is not None:
         vlm_cfg.lm_model_type = args.lm_model_type
+        # If lm_tokenizer was not explicitly provided, set it to match lm_model_type
+        if args.lm_tokenizer is None:
+            vlm_cfg.lm_tokenizer = args.lm_model_type
     if args.lm_tokenizer is not None:
         vlm_cfg.lm_tokenizer = args.lm_tokenizer
-    elif args.lm_model_type is not None:
-        # If lm_model_type is specified but not lm_tokenizer, default lm_tokenizer to None
-        # (which will cause it to use lm_model_type as per the default behavior)
-        vlm_cfg.lm_tokenizer = None
 
     if args.resume_from_vlm_checkpoint:
         train_cfg.resume_from_vlm_checkpoint = True
