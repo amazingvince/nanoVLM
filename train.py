@@ -982,14 +982,13 @@ def get_parser() -> argparse.ArgumentParser:
         help="Path to the VLM checkpoint for loading or saving",
     )
     parser.add_argument(
-        "-c", "--compile", type=bool, help="Use torch.compile to optimize the model"
+        "-c", "--compile", action="store_true", help="Use torch.compile to optimize the model"
     )
-    parser.add_argument("--log_wandb", type=bool, help="Log to wandb")
+    parser.add_argument("--log_wandb", action="store_true", help="Log to wandb")
     parser.add_argument(
         "--resume_from_vlm_checkpoint",
-        type=bool,
-        default=False,
-        help="Resume training from VLM checkpoint specified by vlm_checkpoint_path (or default if not provided)",
+        action="store_true",
+        help="Resume training from VLM checkpoint specified by vlm_checkpoint_path",
     )
     parser.add_argument(
         "--no_log_wandb", action="store_true", help="Do not log to wandb"
@@ -1031,12 +1030,12 @@ def get_parser() -> argparse.ArgumentParser:
         "--console_log_interval",
         type=int,
         default=25,
-        help="Interval for logging training progress to console (default: 25)",
+        help="Interval for logging training progress to console",
     )
     parser.add_argument(
         "--use_slurm_for_eval",
         action="store_true",
-        help="Submit evaluation jobs to SLURM cluster (default: False)",
+        help="Submit evaluation jobs to SLURM cluster",
     )
     parser.add_argument(
         "--lm_model_type",
@@ -1046,7 +1045,7 @@ def get_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--lm_tokenizer",
         type=str,
-        help="Tokenizer to use (defaults to lm_model_type if not specified)",
+        help="Tokenizer to use; defaults to lm_model_type if not specified",
     )
 
     return parser
@@ -1072,9 +1071,11 @@ def main():
         train_cfg.lr_language_backbone = args.lr_language_backbone
     if args.vlm_checkpoint_path is not None:
         vlm_cfg.vlm_checkpoint_path = args.vlm_checkpoint_path
-    if args.compile is not None:
-        train_cfg.compile = args.compile
-    if args.no_log_wandb is True:
+    if args.compile:
+        train_cfg.compile = True
+    if args.log_wandb:
+        train_cfg.log_wandb = True
+    if args.no_log_wandb:
         train_cfg.log_wandb = False
     if args.train_dataset_path is not None:
         train_cfg.train_dataset_path = args.train_dataset_path
@@ -1099,7 +1100,7 @@ def main():
         # (which will cause it to use lm_model_type as per the default behavior)
         vlm_cfg.lm_tokenizer = None
 
-    if args.resume_from_vlm_checkpoint and args.vlm_checkpoint_path is not None:
+    if args.resume_from_vlm_checkpoint:
         train_cfg.resume_from_vlm_checkpoint = True
         # When resuming a full VLM, we don't need to load individual backbone weights from original sources
         vlm_cfg.vlm_load_backbone_weights = False
