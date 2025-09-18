@@ -15,15 +15,12 @@ import numpy
 import torch
 import torch.distributed as dist
 import torch.optim as optim
-import wandb
-from datasets import (
-    concatenate_datasets,
-    get_dataset_config_names,
-    load_dataset,
-    load_from_disk,
-)
+from datasets import (concatenate_datasets, get_dataset_config_names,
+                      load_dataset, load_from_disk)
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
+
+import wandb
 
 torch.manual_seed(0)
 if torch.cuda.is_available():
@@ -1012,6 +1009,16 @@ def get_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Submit evaluation jobs to SLURM cluster (default: False)",
     )
+    parser.add_argument(
+        "--lm_model_type",
+        type=str,
+        help="Language model type/path to use (e.g., 'HuggingFaceTB/SmolLM2-360M-Instruct')",
+    )
+    parser.add_argument(
+        "--lm_tokenizer",
+        type=str,
+        help="Tokenizer to use (defaults to lm_model_type if not specified)",
+    )
 
     return parser
 
@@ -1054,6 +1061,14 @@ def main():
         train_cfg.console_log_interval = args.console_log_interval
     if args.use_slurm_for_eval:
         train_cfg.use_slurm_for_eval = True
+    if args.lm_model_type is not None:
+        vlm_cfg.lm_model_type = args.lm_model_type
+    if args.lm_tokenizer is not None:
+        vlm_cfg.lm_tokenizer = args.lm_tokenizer
+    elif args.lm_model_type is not None:
+        # If lm_model_type is specified but not lm_tokenizer, default lm_tokenizer to None
+        # (which will cause it to use lm_model_type as per the default behavior)
+        vlm_cfg.lm_tokenizer = None
 
     if args.resume_from_vlm_checkpoint and args.vlm_checkpoint_path is not None:
         train_cfg.resume_from_vlm_checkpoint = True
