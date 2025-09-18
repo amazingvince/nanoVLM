@@ -9,6 +9,7 @@ import subprocess
 import time
 from dataclasses import asdict
 from datetime import timedelta
+from pathlib import Path
 from statistics import mean
 
 import numpy
@@ -640,41 +641,37 @@ def train(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
                         mean(dist_gather(avg_val_loss)) if is_dist() else avg_val_loss
                     )
 
-                    checkpoint_path_step = ""
+                    checkpoint_path_step = None
                     if is_master():
                         # Save a checkpoint for this evaluation step
-                        checkpoint_path_step = os.path.join(
-                            vlm_cfg.vlm_checkpoint_path, run_name, f"step_{global_step}"
-                        )
+                        checkpoint_path_step = Path(vlm_cfg.vlm_checkpoint_path) / run_name / f"step_{global_step}"
                         save_model = (
                             model.module if is_dist() else model
                         )  # unwrap the model for saving if DDP
-                        save_model.save_pretrained(save_directory=checkpoint_path_step)
+                        save_model.save_pretrained(save_directory=str(checkpoint_path_step))
                         
                         # Save configs and tokenizer if not already present in checkpoint directory
-                        checkpoint_base_dir = os.path.join(vlm_cfg.vlm_checkpoint_path, run_name)
+                        checkpoint_base_dir = Path(vlm_cfg.vlm_checkpoint_path) / run_name
                         
                         # Save VLM config if not exists
-                        vlm_config_path = os.path.join(checkpoint_base_dir, "vlm_config.json")
-                        if not os.path.exists(vlm_config_path):
-                            import json as config_json
+                        vlm_config_path = checkpoint_base_dir / "vlm_config.json"
+                        if not vlm_config_path.exists():
                             with open(vlm_config_path, 'w') as f:
-                                config_json.dump(asdict(vlm_cfg), f, indent=2)
+                                json.dump(asdict(vlm_cfg), f, indent=2)
                         
                         # Save Train config if not exists
-                        train_config_path = os.path.join(checkpoint_base_dir, "train_config.json")
-                        if not os.path.exists(train_config_path):
-                            import json as config_json
+                        train_config_path = checkpoint_base_dir / "train_config.json"
+                        if not train_config_path.exists():
                             with open(train_config_path, 'w') as f:
-                                config_json.dump(asdict(train_cfg), f, indent=2)
+                                json.dump(asdict(train_cfg), f, indent=2)
                         
                         # Save tokenizer if not exists
-                        tokenizer_dir = os.path.join(checkpoint_base_dir, "tokenizer")
-                        if not os.path.exists(tokenizer_dir):
+                        tokenizer_dir = checkpoint_base_dir / "tokenizer"
+                        if not tokenizer_dir.exists():
                             tokenizer = get_tokenizer(
                                 vlm_cfg.lm_tokenizer, vlm_cfg.vlm_extra_tokens, vlm_cfg.lm_chat_template
                             )
-                            tokenizer.save_pretrained(tokenizer_dir)
+                            tokenizer.save_pretrained(str(tokenizer_dir))
 
                         if (
                             train_cfg.use_lmms_eval
@@ -682,14 +679,14 @@ def train(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
                             and global_step % (train_cfg.eval_interval * 2) == 0
                         ):
                             # Submit evaluation job to SLURM
-                            cmd = f"sbatch eval.slurm {checkpoint_path_step} {global_step} {run_name} {train_cfg.lmms_eval_limit} {train_cfg.lmms_eval_tasks} {train_cfg.lmms_eval_batch_size}"
+                            cmd = f"sbatch eval.slurm {str(checkpoint_path_step)} {global_step} {run_name} {train_cfg.lmms_eval_limit} {train_cfg.lmms_eval_tasks} {train_cfg.lmms_eval_batch_size}"
                             print(f"Submitting evaluation job to SLURM: {cmd}")
                             subprocess.run(cmd, shell=True)
 
                     if avg_val_loss < best_val_loss:
                         best_val_loss = avg_val_loss
                         if is_master():
-                            best_model_path = checkpoint_path_step
+                            best_model_path = str(checkpoint_path_step)
 
                     if is_master():
                         print(
@@ -765,26 +762,15 @@ def train(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
                     )
 
                     # Check for and log new lmms-eval results
-                    eval_results_dir = os.path.join("eval_results", run_name)
-                    if os.path.exists(eval_results_dir):
+                    eval_results_dir = Path("eval_results") / run_name
+                    if eval_results_dir.exists():
                         logged_results_count = 0
-                        for result_file in os.listdir(eval_results_dir):
-                            if result_file.startswith("step_") and result_file.endswith(
-                                ".json"
-                            ):
+                        for result_file in eval_results_dir.iterdir():
+                            if result_file.name.startswith("step_") and result_file.suffix == ".json":
                                 try:
-                                    step = int(
-                                        result_file.replace("step_", "").replace(
-                                            ".json", ""
-                                        )
-                                    )
+                                    step = int(result_file.stem.replace("step_", ""))
                                     if step not in logged_eval_steps:
-                                        with open(
-                                            os.path.join(eval_results_dir, result_file),
-                                            "r",
-                                        ) as f:
-                                            import json
-
+                                        with open(result_file, "r") as f:
                                             eval_data = json.load(f)
 
                                         lmms_results = eval_data.get("results", {})
