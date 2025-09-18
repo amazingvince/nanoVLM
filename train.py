@@ -5,6 +5,7 @@ import logging
 import math
 import os
 import random
+import shutil
 import subprocess
 import time
 from dataclasses import asdict
@@ -16,12 +17,8 @@ import numpy
 import torch
 import torch.distributed as dist
 import torch.optim as optim
-from datasets import (
-    concatenate_datasets,
-    get_dataset_config_names,
-    load_dataset,
-    load_from_disk,
-)
+from datasets import (concatenate_datasets, get_dataset_config_names,
+                      load_dataset, load_from_disk)
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 from tqdm import tqdm
@@ -241,11 +238,7 @@ def get_dataloaders(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
         )
 
     train_ds = concatenate_datasets(combined_train_data)
-    # Apply cutoff if specified
-    if train_cfg.data_cutoff_idx is None:
-        total_samples = len(train_ds)  # Use the entire dataset
-    else:
-        total_samples = min(len(train_ds), train_cfg.data_cutoff_idx)
+    # Apply cutoff if specified - Note: we apply the cutoff later via dataset selection
 
     train_ds = train_ds.shuffle(
         seed=0
@@ -689,6 +682,21 @@ def train(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
                             )
                             tokenizer.save_pretrained(str(tokenizer_dir))
 
+                        # Manage checkpoint limit
+                        if train_cfg.max_saved_checkpoints > 0:
+                            # Find all step_* directories in checkpoint_base_dir
+                            step_dirs = sorted(
+                                [d for d in checkpoint_base_dir.iterdir() if d.is_dir() and d.name.startswith("step_")],
+                                key=lambda x: int(x.name.replace("step_", ""))
+                            )
+                            # If we exceed the limit, remove oldest checkpoints
+                            if len(step_dirs) > train_cfg.max_saved_checkpoints:
+                                dirs_to_remove = step_dirs[:-train_cfg.max_saved_checkpoints]
+                                for old_dir in dirs_to_remove:
+                                    if is_master():
+                                        print(f"Removing old checkpoint: {old_dir}")
+                                    shutil.rmtree(old_dir)
+
                         if (
                             train_cfg.use_lmms_eval
                             and train_cfg.use_slurm_for_eval
@@ -1059,6 +1067,12 @@ def get_parser() -> argparse.ArgumentParser:
         type=str,
         help="Tokenizer to use; defaults to lm_model_type if not specified",
     )
+    parser.add_argument(
+        "--max_saved_checkpoints",
+        type=int,
+        default=3,
+        help="Maximum number of checkpoints to keep (0 = unlimited)",
+    )
 
     return parser
 
@@ -1110,6 +1124,8 @@ def main():
             vlm_cfg.lm_tokenizer = args.lm_model_type
     if args.lm_tokenizer is not None:
         vlm_cfg.lm_tokenizer = args.lm_tokenizer
+    if args.max_saved_checkpoints is not None:
+        train_cfg.max_saved_checkpoints = args.max_saved_checkpoints
 
     if args.resume_from_vlm_checkpoint:
         train_cfg.resume_from_vlm_checkpoint = True

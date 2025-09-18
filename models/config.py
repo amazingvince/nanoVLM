@@ -158,3 +158,4 @@ class TrainConfig:
     lmms_eval_tasks: str = "mmstar,mmmu,ocrbench,textvqa,docvqa,scienceqa,mme,infovqa"  # Pass additional task as one string, seperated by commas without spaces (e.g. 'mmstar,mmmu,ocrbench')
     lmms_eval_limit: float = None
     lmms_eval_batch_size: int = 64
+    max_saved_checkpoints: int = 3  # Maximum number of checkpoints to keep (oldest removed when exceeded)
