@@ -16,8 +16,12 @@ import numpy
 import torch
 import torch.distributed as dist
 import torch.optim as optim
-from datasets import (concatenate_datasets, get_dataset_config_names,
-                      load_dataset, load_from_disk)
+from datasets import (
+    concatenate_datasets,
+    get_dataset_config_names,
+    load_dataset,
+    load_from_disk,
+)
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 from tqdm import tqdm
@@ -204,8 +208,10 @@ def get_dataloaders(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
     combined_train_data = []
 
     # Use tqdm only on master rank to avoid duplicate progress bars
-    dataset_iterator = tqdm(dataset_names_to_load, desc="Loading dataset configs", disable=not is_master())
-    
+    dataset_iterator = tqdm(
+        dataset_names_to_load, desc="Loading dataset configs", disable=not is_master()
+    )
+
     for dataset_name in dataset_iterator:
         if "shard_" in dataset_name:
             try:
@@ -644,32 +650,42 @@ def train(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
                     checkpoint_path_step = None
                     if is_master():
                         # Save a checkpoint for this evaluation step
-                        checkpoint_path_step = Path(vlm_cfg.vlm_checkpoint_path) / run_name / f"step_{global_step}"
+                        checkpoint_path_step = (
+                            Path(vlm_cfg.vlm_checkpoint_path)
+                            / run_name
+                            / f"step_{global_step}"
+                        )
                         save_model = (
                             model.module if is_dist() else model
                         )  # unwrap the model for saving if DDP
-                        save_model.save_pretrained(save_directory=str(checkpoint_path_step))
-                        
+                        save_model.save_pretrained(
+                            save_directory=str(checkpoint_path_step)
+                        )
+
                         # Save configs and tokenizer if not already present in checkpoint directory
-                        checkpoint_base_dir = Path(vlm_cfg.vlm_checkpoint_path) / run_name
-                        
+                        checkpoint_base_dir = (
+                            Path(vlm_cfg.vlm_checkpoint_path) / run_name
+                        )
+
                         # Save VLM config if not exists
                         vlm_config_path = checkpoint_base_dir / "vlm_config.json"
                         if not vlm_config_path.exists():
-                            with open(vlm_config_path, 'w') as f:
+                            with open(vlm_config_path, "w") as f:
                                 json.dump(asdict(vlm_cfg), f, indent=2)
-                        
+
                         # Save Train config if not exists
                         train_config_path = checkpoint_base_dir / "train_config.json"
                         if not train_config_path.exists():
-                            with open(train_config_path, 'w') as f:
+                            with open(train_config_path, "w") as f:
                                 json.dump(asdict(train_cfg), f, indent=2)
-                        
+
                         # Save tokenizer if not exists
                         tokenizer_dir = checkpoint_base_dir / "tokenizer"
                         if not tokenizer_dir.exists():
                             tokenizer = get_tokenizer(
-                                vlm_cfg.lm_tokenizer, vlm_cfg.vlm_extra_tokens, vlm_cfg.lm_chat_template
+                                vlm_cfg.lm_tokenizer,
+                                vlm_cfg.vlm_extra_tokens,
+                                vlm_cfg.lm_chat_template,
                             )
                             tokenizer.save_pretrained(str(tokenizer_dir))
 
@@ -766,7 +782,10 @@ def train(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
                     if eval_results_dir.exists():
                         logged_results_count = 0
                         for result_file in eval_results_dir.iterdir():
-                            if result_file.name.startswith("step_") and result_file.suffix == ".json":
+                            if (
+                                result_file.name.startswith("step_")
+                                and result_file.suffix == ".json"
+                            ):
                                 try:
                                     step = int(result_file.stem.replace("step_", ""))
                                     if step not in logged_eval_steps:
@@ -866,7 +885,11 @@ def train(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
                     )
 
                 # MASTER ONLY: Log to wandb every stats_log_interval steps
-                if train_cfg.log_wandb and is_master() and global_step % train_cfg.stats_log_interval == 0:
+                if (
+                    train_cfg.log_wandb
+                    and is_master()
+                    and global_step % train_cfg.stats_log_interval == 0
+                ):
                     run.log(
                         {
                             "batch_loss": batch_loss_gathered,
@@ -968,7 +991,10 @@ def get_parser() -> argparse.ArgumentParser:
         help="Path to the VLM checkpoint for loading or saving",
     )
     parser.add_argument(
-        "-c", "--compile", action="store_true", help="Use torch.compile to optimize the model"
+        "-c",
+        "--compile",
+        action="store_true",
+        help="Use torch.compile to optimize the model",
     )
     parser.add_argument("--log_wandb", action="store_true", help="Log to wandb")
     parser.add_argument(
