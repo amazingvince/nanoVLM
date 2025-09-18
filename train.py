@@ -19,6 +19,7 @@ from datasets import (concatenate_datasets, get_dataset_config_names,
                       load_dataset, load_from_disk)
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
+from tqdm import tqdm
 
 import wandb
 
@@ -201,17 +202,20 @@ def get_dataloaders(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
     # Load and combine all training datasets
     combined_train_data = []
 
-    for dataset_name in dataset_names_to_load:
-        print(f"Loading dataset: {dataset_name}")
+    # Use tqdm only on master rank to avoid duplicate progress bars
+    dataset_iterator = tqdm(dataset_names_to_load, desc="Loading dataset configs", disable=not is_master())
+    
+    for dataset_name in dataset_iterator:
         if "shard_" in dataset_name:
             try:
                 train_ds = load_from_disk(dataset_name)
                 combined_train_data.append(train_ds)
                 continue
             except Exception as e:
-                print(
-                    f"Warning: Failed to load dataset shard '{dataset_name}' from '{train_cfg.train_dataset_path}'. Error: {e}"
-                )
+                if is_master():
+                    print(
+                        f"Warning: Failed to load dataset shard '{dataset_name}' from '{train_cfg.train_dataset_path}'. Error: {e}"
+                    )
                 continue
         try:
             train_ds = load_dataset(train_cfg.train_dataset_path, dataset_name)["train"]
@@ -646,6 +650,31 @@ def train(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
                             model.module if is_dist() else model
                         )  # unwrap the model for saving if DDP
                         save_model.save_pretrained(save_directory=checkpoint_path_step)
+                        
+                        # Save configs and tokenizer if not already present in checkpoint directory
+                        checkpoint_base_dir = os.path.join(vlm_cfg.vlm_checkpoint_path, run_name)
+                        
+                        # Save VLM config if not exists
+                        vlm_config_path = os.path.join(checkpoint_base_dir, "vlm_config.json")
+                        if not os.path.exists(vlm_config_path):
+                            import json as config_json
+                            with open(vlm_config_path, 'w') as f:
+                                config_json.dump(asdict(vlm_cfg), f, indent=2)
+                        
+                        # Save Train config if not exists
+                        train_config_path = os.path.join(checkpoint_base_dir, "train_config.json")
+                        if not os.path.exists(train_config_path):
+                            import json as config_json
+                            with open(train_config_path, 'w') as f:
+                                config_json.dump(asdict(train_cfg), f, indent=2)
+                        
+                        # Save tokenizer if not exists
+                        tokenizer_dir = os.path.join(checkpoint_base_dir, "tokenizer")
+                        if not os.path.exists(tokenizer_dir):
+                            tokenizer = get_tokenizer(
+                                vlm_cfg.lm_tokenizer, vlm_cfg.vlm_extra_tokens, vlm_cfg.lm_chat_template
+                            )
+                            tokenizer.save_pretrained(tokenizer_dir)
 
                         if (
                             train_cfg.use_lmms_eval
@@ -850,8 +879,8 @@ def train(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
                         f"Tokens/s: {current_tokens_per_sec:,.0f}"
                     )
 
-                # MASTER ONLY: Log to wandb
-                if train_cfg.log_wandb and is_master():
+                # MASTER ONLY: Log to wandb every stats_log_interval steps
+                if train_cfg.log_wandb and is_master() and global_step % train_cfg.stats_log_interval == 0:
                     run.log(
                         {
                             "batch_loss": batch_loss_gathered,

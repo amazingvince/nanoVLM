@@ -12,8 +12,8 @@ import transformers  # noqa: E402
 
 transformers.logging.set_verbosity_error()
 
-from data.processors import (get_image_processor,  # noqa: E402
-                             get_image_string, get_tokenizer)
+from data.processors import get_image_processor  # noqa: E402
+from data.processors import get_image_string, get_tokenizer
 from models.vision_language_model import VisionLanguageModel  # noqa: E402
 
 
