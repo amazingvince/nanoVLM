@@ -226,7 +226,9 @@ def get_dataloaders(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
                     )
                 continue
         try:
-            train_ds = load_dataset(train_cfg.train_dataset_path, dataset_name)["train"]
+            train_ds = load_dataset(
+                train_cfg.train_dataset_path, dataset_name, num_proc=train_num_workers
+            )["train"]
             train_ds[0]  # Check if the dataset is loaded correctly
             combined_train_data.append(train_ds)
         except Exception as e:
@@ -453,9 +455,11 @@ def train(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
     device = (
         torch.device("cuda")
         if torch.cuda.is_available()
-        else torch.device("mps")
-        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
-        else torch.device("cpu")
+        else (
+            torch.device("mps")
+            if hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
+            else torch.device("cpu")
+        )
     )
     if device.type == "mps":
         torch.backends.mps.enable_fallback_to_cpu = True
@@ -525,9 +529,9 @@ def train(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
             fw_bw_start = time.time()
             autocast_context = torch.autocast(
                 device_type=device.type,
-                dtype=torch.bfloat16
-                if device.type in ["cuda", "cpu"]
-                else torch.float16,
+                dtype=(
+                    torch.bfloat16 if device.type in ["cuda", "cpu"] else torch.float16
+                ),
             )
             with autocast_context:
                 with context:
