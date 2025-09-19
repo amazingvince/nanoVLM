@@ -18,8 +18,12 @@ import torch
 import torch.distributed as dist
 import torch.optim as optim
 import wandb
-from datasets import (concatenate_datasets, get_dataset_config_names,
-                      load_dataset, load_from_disk)
+from datasets import (
+    concatenate_datasets,
+    get_dataset_config_names,
+    load_dataset,
+    load_from_disk,
+)
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 from tqdm import tqdm
@@ -685,12 +689,18 @@ def train(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
                         if train_cfg.max_saved_checkpoints > 0:
                             # Find all step_* directories in checkpoint_base_dir
                             step_dirs = sorted(
-                                [d for d in checkpoint_base_dir.iterdir() if d.is_dir() and d.name.startswith("step_")],
-                                key=lambda x: int(x.name.replace("step_", ""))
+                                [
+                                    d
+                                    for d in checkpoint_base_dir.iterdir()
+                                    if d.is_dir() and d.name.startswith("step_")
+                                ],
+                                key=lambda x: int(x.name.replace("step_", "")),
                             )
                             # If we exceed the limit, remove oldest checkpoints
                             if len(step_dirs) > train_cfg.max_saved_checkpoints:
-                                dirs_to_remove = step_dirs[:-train_cfg.max_saved_checkpoints]
+                                dirs_to_remove = step_dirs[
+                                    : -train_cfg.max_saved_checkpoints
+                                ]
                                 for old_dir in dirs_to_remove:
                                     if is_master():
                                         print(f"Removing old checkpoint: {old_dir}")

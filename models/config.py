@@ -31,7 +31,7 @@ class VLMConfig:
     lm_dropout: float = 0.0
     lm_n_blocks: int = 32
     lm_attn_scaling: float = 1.0
-    lm_max_length: int = 2048 # nanoVLM main uses 8192 (too memory intensive)
+    lm_max_length: int = 2048  # nanoVLM main uses 8192 (too memory intensive)
     lm_use_tokens: bool = False  # Decide if the LM expects tokens or embeddings as input (if using as a backbone for the VLM, set to False)
     lm_tie_weights: bool = True  # Decide if you want to tie the LM Head weight to the token embedding weights
     lm_model_type: str = (
@@ -43,7 +43,7 @@ class VLMConfig:
     mp_pixel_shuffle_factor: int = 4
     mp_image_token_length: int = 64
 
-    max_img_size: int = 1024 # nanoVLM main uses 2048 (too memory intensive)
+    max_img_size: int = 1024  # nanoVLM main uses 2048 (too memory intensive)
     resize_to_max_side_len: bool = True
 
     vlm_extra_tokens: dict[str, str] = field(
@@ -158,4 +158,6 @@ class TrainConfig:
     lmms_eval_tasks: str = "mmstar,mmmu,ocrbench,textvqa,docvqa,scienceqa,mme,infovqa"  # Pass additional task as one string, seperated by commas without spaces (e.g. 'mmstar,mmmu,ocrbench')
     lmms_eval_limit: float = None
     lmms_eval_batch_size: int = 64
-    max_saved_checkpoints: int = 3  # Maximum number of checkpoints to keep (oldest removed when exceeded)
+    max_saved_checkpoints: int = (
+        3  # Maximum number of checkpoints to keep (oldest removed when exceeded)
+    )
