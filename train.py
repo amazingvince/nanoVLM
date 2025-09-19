@@ -43,6 +43,7 @@ from data.data_utils import synchronized_dataloader_step  # noqa: E402
 from data.datasets import VQADataset  # noqa: E402
 from data.processors import get_image_processor, get_tokenizer  # noqa: E402
 from models.vision_language_model import VisionLanguageModel  # noqa: E402
+from models.utils import configure_tf32, model_summary  # noqa: E402
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
@@ -395,10 +396,10 @@ def train(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
             vlm_cfg, load_backbone=vlm_cfg.vlm_load_backbone_weights
         )
 
+    # print out overviews: model, training info
     if is_master():
-        print(
-            f"nanoVLM initialized with {sum(p.numel() for p in model.parameters()):,} parameters"
-        )
+        print("\nnanoVLM:", flush=True)
+        model_summary(model, max_depth=3, show_param_shapes=False)
         print(
             f"Training summary{' (global)' if is_dist() else ''}: {-1 * get_world_size()} samples, {int(len(train_loader) * get_world_size())} batches/epoch, batch size {int(train_cfg.batch_size * get_world_size() * train_cfg.gradient_accumulation_steps)}{', training on ' + str(get_world_size()) + ' GPUs' if is_dist() else ''}"
         )
@@ -1150,6 +1151,8 @@ def main():
         print(json.dumps(asdict(vlm_cfg), indent=2))
         print("--- Train Config ---")
         print(json.dumps(asdict(train_cfg), indent=2))
+
+    configure_tf32()  # TODO: does this need special distributed handling?
 
     train(train_cfg, vlm_cfg, train_num_workers, val_num_workers)
 
