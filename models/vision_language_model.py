@@ -1,7 +1,7 @@
 import json
-import os
 import tempfile
 from dataclasses import asdict
+from pathlib import Path
 from typing import Optional
 
 import torch
@@ -253,15 +253,16 @@ class VisionLanguageModel(nn.Module):
             VisionLanguageModel: The loaded model.
         """
         # If local folder exists => load from there
-        if os.path.exists(repo_id_or_path):
-            config_path = os.path.join(repo_id_or_path, "config.json")
-            weights_path = os.path.join(repo_id_or_path, "model.safetensors")
+        local_path = Path(repo_id_or_path)
+        if local_path.exists():
+            config_path = local_path / "config.json"
+            weights_path = local_path / "model.safetensors"
 
-            if not os.path.exists(config_path):
+            if not config_path.exists():
                 raise ValueError(
                     f"Config file not found at {config_path}. Please provide a valid path."
                 )
-            if not os.path.exists(weights_path):
+            if not weights_path.exists():
                 raise ValueError(
                     f"Weights file not found at {weights_path}. Please provide a valid path."
                 )
@@ -284,7 +285,7 @@ class VisionLanguageModel(nn.Module):
         model = cls(cfg, load_backbone=False)
 
         # Load safetensors weights
-        load_model(model, weights_path)
+        load_model(model, str(weights_path))
 
         # Done!
         return model
@@ -297,14 +298,15 @@ class VisionLanguageModel(nn.Module):
             save_directory (str): The directory to save the model and config.
         """
         # Create directory if it doesn't exist
-        os.makedirs(save_directory, exist_ok=True)
+        save_path = Path(save_directory)
+        save_path.mkdir(parents=True, exist_ok=True)
 
         # Save config
-        with open(os.path.join(save_directory, "config.json"), "w") as f:
+        with open(save_path / "config.json", "w") as f:
             f.write(json.dumps(asdict(self.cfg), indent=4))
 
         # Save weights as safetensors
-        save_model(self, os.path.join(save_directory, "model.safetensors"))
+        save_model(self, str(save_path / "model.safetensors"))
 
     def push_to_hub(self, repo_id: str, private: bool = False) -> None:
         """
@@ -325,7 +327,8 @@ class VisionLanguageModel(nn.Module):
             self.save_pretrained(save_path)
 
             # Save model card
-            with open(os.path.join(save_path, "README.md"), "w") as f:
+            readme_path = Path(save_path) / "README.md"
+            with open(readme_path, "w") as f:
                 f.write(MODEL_CARD_TEMPLATE.format(repo_id=repo_id))
 
             # Upload

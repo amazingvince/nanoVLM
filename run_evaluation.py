@@ -1,6 +1,6 @@
 import argparse
 import json
-import os
+from pathlib import Path
 
 import torch
 
@@ -62,9 +62,9 @@ def main():
     else:
         print("No evaluation results to process.")
 
-    output_dir = os.path.join("eval_results", args.run_name)
-    os.makedirs(output_dir, exist_ok=True)
-    output_path = os.path.join(output_dir, f"step_{args.global_step}.json")
+    output_dir = Path("eval_results") / args.run_name
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / f"step_{args.global_step}.json"
 
     with open(output_path, "w") as f:
         json.dump(output_data, f, indent=4)

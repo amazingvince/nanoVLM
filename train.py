@@ -17,13 +17,12 @@ import numpy
 import torch
 import torch.distributed as dist
 import torch.optim as optim
+import wandb
 from datasets import (concatenate_datasets, get_dataset_config_names,
                       load_dataset, load_from_disk)
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 from tqdm import tqdm
-
-import wandb
 
 torch.manual_seed(0)
 if torch.cuda.is_available():

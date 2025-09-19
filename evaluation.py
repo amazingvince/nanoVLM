@@ -9,6 +9,7 @@ import sys
 import traceback
 import warnings
 from functools import partial
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -381,7 +382,8 @@ def cli_evaluate(args: Union[argparse.Namespace, None] = None) -> None:
     args_list = []
     results_list = []
     if args.config:
-        if not os.path.exists(args.config):
+        config_path = Path(args.config)
+        if not config_path.exists():
             raise ValueError(f"Config file does not exist: {args.config}")
 
         with open(args.config, "r") as file:
@@ -572,19 +574,19 @@ def cli_evaluate_single(args: Union[argparse.Namespace, None] = None) -> None:
                 )
         sys.exit()
     else:
-        if os.path.isdir(args.tasks):
-            import glob
-
+        task_path = Path(args.tasks)
+        if task_path.is_dir():
             task_names = []
-            yaml_path = os.path.join(args.tasks, "*.yaml")
-            for yaml_file in glob.glob(yaml_path):
+            yaml_files = task_path.glob("*.yaml")
+            for yaml_file in yaml_files:
                 config = utils.load_yaml_config(yaml_file)
                 task_names.append(config)
         else:
             task_list = args.tasks.split(",")
             task_names = task_manager.match_tasks(task_list)
             for task in [task for task in task_list if task not in task_names]:
-                if os.path.isfile(task):
+                task_file = Path(task)
+                if task_file.is_file():
                     config = utils.load_yaml_config(task)
                     task_names.append(config)
             task_missing = [

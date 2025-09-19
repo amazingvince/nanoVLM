@@ -350,15 +350,15 @@ def orchestrate_evaluations(
             f"\nRunning evaluation {i}/{len(missing_evaluations)}: Step {step}, Tasks: {tasks_to_run}, Rank: {get_rank()}"
         )
 
-        checkpoint_path = os.path.join(checkpoints_dir, f"step_{step}")
-        if not os.path.exists(checkpoint_path):
+        checkpoint_path = Path(checkpoints_dir) / f"step_{step}"
+        if not checkpoint_path.exists():
             print(f"Warning: Checkpoint path does not exist: {checkpoint_path}")
             continue
 
         try:
             # Run evaluation for tasks
             results = run_evaluation(
-                checkpoint_path, step, tasks_to_run, limit, batch_size
+                str(checkpoint_path), step, tasks_to_run, limit, batch_size
             )
             print(f"✓ Completed evaluation for step {step}, Rank: {get_rank()}")
 

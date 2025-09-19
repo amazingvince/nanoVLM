@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 import argparse
-import glob
 import json
-import os
 import sys
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -114,7 +113,8 @@ def compute_ranking_summary(all_results, tasks_to_plot):
 
 def load_eval_results(eval_folder, tasks_to_plot=None):
     """Load all JSON files from the evaluation folder and extract results."""
-    json_files = glob.glob(os.path.join(eval_folder, "step_*.json"))
+    eval_path = Path(eval_folder)
+    json_files = list(eval_path.glob("step_*.json"))
 
     if not json_files:
         print(f"No JSON files found in {eval_folder}")
@@ -174,7 +174,7 @@ def get_legend_name(eval_folder, custom_name=None):
     """Extract legend name from folder path or use custom name."""
     if custom_name:
         return custom_name
-    folder_name = os.path.basename(eval_folder)
+    folder_name = Path(eval_folder).name
     return folder_name.split("_")[-1]
 
 
@@ -269,7 +269,7 @@ def plot_results(
                 folder_name = (
                     custom_names[j]
                     if custom_names and custom_names[j]
-                    else os.path.basename(eval_folder)
+                    else Path(eval_folder).name
                 )
                 print(
                     f"Warning: {folder_name} missing '{metric}' for steps: {missing_steps}"
@@ -377,17 +377,17 @@ def plot_results(
     plt.tight_layout()
 
     # Create assets folder if it doesn't exist
-    assets_folder = "/fsx/luis_wiedmann/nanoVLM/plots_final"
-    os.makedirs(assets_folder, exist_ok=True)
+    assets_folder = Path("/fsx/luis_wiedmann/nanoVLM/plots_final")
+    assets_folder.mkdir(parents=True, exist_ok=True)
 
     # Save the plot to assets folder
     if output_filename:
-        output_file = os.path.join(assets_folder, f"{output_filename}.pdf")
+        output_file = assets_folder / f"{output_filename}.pdf"
     elif len(eval_folders) == 1:
-        folder_name = os.path.basename(eval_folders[0])
-        output_file = os.path.join(assets_folder, f"{folder_name}_evaluation_plots.pdf")
+        folder_name = Path(eval_folders[0]).name
+        output_file = assets_folder / f"{folder_name}_evaluation_plots.pdf"
     else:
-        output_file = os.path.join(assets_folder, "comparison_evaluation_plots.pdf")
+        output_file = assets_folder / "comparison_evaluation_plots.pdf"
 
     plt.savefig(output_file, format="pdf", dpi=600, bbox_inches="tight")
     print(f"Plot saved to: {output_file}")
@@ -559,24 +559,24 @@ def save_individual_plot_pdf(
     plt.tight_layout(pad=1.5)
 
     # Create assets folder if it doesn't exist
-    assets_folder = "/fsx/luis_wiedmann/nanoVLM/plots_final"
-    os.makedirs(assets_folder, exist_ok=True)
+    assets_folder = Path("/fsx/luis_wiedmann/nanoVLM/plots_final")
+    assets_folder.mkdir(parents=True, exist_ok=True)
 
     # Generate filename for individual plot PDF
     if output_filename:
-        pdf_file = os.path.join(assets_folder, f"{output_filename}_{metric_name}.pdf")
+        pdf_file = assets_folder / f"{output_filename}_{metric_name}.pdf"
     elif len(eval_folders) == 1:
-        folder_name = os.path.basename(eval_folders[0])
-        pdf_file = os.path.join(assets_folder, f"{folder_name}_{metric_name}.pdf")
+        folder_name = Path(eval_folders[0]).name
+        pdf_file = assets_folder / f"{folder_name}_{metric_name}.pdf"
     else:
-        pdf_file = os.path.join(assets_folder, f"comparison_{metric_name}.pdf")
+        pdf_file = assets_folder / f"comparison_{metric_name}.pdf"
 
     # Save as PDF with 300 DPI
     plt.savefig(pdf_file, format="pdf", dpi=300, bbox_inches="tight")
     print(f"Individual plot for '{metric_name}' saved to: {pdf_file}")
 
     # Also save as PNG
-    png_file = pdf_file.replace(".pdf", ".png")
+    png_file = str(pdf_file).replace(".pdf", ".png")
     plt.savefig(png_file, format="png", dpi=300, bbox_inches="tight")
     print(f"Individual plot for '{metric_name}' saved to: {png_file}")
 
@@ -624,7 +624,7 @@ def save_csv_data(
     if csv_data:
         df = pd.DataFrame(csv_data)
         # Generate CSV filename from plot filename
-        csv_file = output_file.replace(".pdf", ".csv")
+        csv_file = str(output_file).replace(".pdf", ".csv")
         df.to_csv(csv_file, index=False)
         print(f"Data saved to: {csv_file}")
 
@@ -690,7 +690,7 @@ def parse_args():
 
     # Check if all folders exist
     for eval_folder in eval_folders:
-        if not os.path.exists(eval_folder):
+        if not Path(eval_folder).exists():
             print(f"Error: Folder {eval_folder} does not exist")
             sys.exit(1)
 
@@ -725,7 +725,7 @@ def main():
                         custom_names[eval_folders.index(eval_folder)]
                         if custom_names
                         and custom_names[eval_folders.index(eval_folder)]
-                        else os.path.basename(eval_folder)
+                        else Path(eval_folder).name
                     )
                     print(
                         f"Warning: {folder_name} missing evaluation steps: {missing_steps}"
@@ -750,7 +750,7 @@ def main():
                         custom_names[eval_folders.index(eval_folder)]
                         if custom_names
                         and custom_names[eval_folders.index(eval_folder)]
-                        else os.path.basename(eval_folder)
+                        else Path(eval_folder).name
                     )
                     print(
                         f"Warning: {folder_name} does not have evaluation for tasks: {missing_tasks}"
