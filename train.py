@@ -12,13 +12,18 @@ from dataclasses import asdict
 from datetime import timedelta
 from pathlib import Path
 from statistics import mean
+from typing import Any, List, Tuple
 
 import numpy
 import torch
 import torch.distributed as dist
 import torch.optim as optim
-from datasets import (concatenate_datasets, get_dataset_config_names,
-                      load_dataset, load_from_disk)
+from datasets import (
+    concatenate_datasets,
+    get_dataset_config_names,
+    load_dataset,
+    load_from_disk,
+)
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 from tqdm import tqdm
@@ -68,45 +73,66 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def seed_worker(worker_id):
+def seed_worker(worker_id: int) -> None:
+    """Seed worker processes for reproducibility.
+
+    :param worker_id: Worker process ID
+    """
     worker_seed = torch.initial_seed() % 2**32
     numpy.random.seed(worker_seed)
     random.seed(worker_seed)
 
 
-def init_dist():
+def init_dist() -> None:
+    """Initialize distributed training with NCCL backend."""
     dist.init_process_group(backend="nccl", timeout=timedelta(minutes=30))
     local_rank = int(os.environ["LOCAL_RANK"])
     torch.cuda.set_device(local_rank)
     # torch.cuda.manual_seed(0)           # seed *this* GPU only
 
 
-def destroy_dist():
+def destroy_dist() -> None:
+    """Clean up distributed process group."""
     dist.destroy_process_group()
 
 
-def is_dist():
+def is_dist() -> bool:
+    """Check if distributed training is enabled.
+
+    :return: True if distributed training is initialized
+    """
     return dist.is_available() and dist.is_initialized()
 
 
-def is_master():
+def is_master() -> bool:
+    """Check if current process is the master rank.
+
+    :return: True if master rank or single GPU
+    """
     return dist.get_rank() == 0 if is_dist() else True
 
 
-def get_world_size():
+def get_world_size() -> int:
+    """Get total number of processes in distributed training.
+
+    :return: World size (number of GPUs)
+    """
     return dist.get_world_size() if is_dist() else 1
 
 
-def get_rank():
+def get_rank() -> int:
+    """Get current process rank in distributed training.
+
+    :return: Process rank (0 for master)
+    """
     return dist.get_rank() if is_dist() else 0
 
 
-def dist_gather(obj):
-    """
-    Gather *any* picklable object from every rank without allocating
-    temporary CUDA buffers.  Returns a list [rank0_obj, rank1_obj, …].
+def dist_gather(obj: Any) -> List[Any]:
+    """Gather objects from all ranks without CUDA allocations.
 
-    Falls back to a single-rank list when torch.distributed is not initialised.
+    :param obj: Object to gather from each rank
+    :return: List of objects from all ranks
     """
     if not (dist.is_available() and dist.is_initialized()):
         return [obj]
@@ -116,7 +142,12 @@ def dist_gather(obj):
     return result
 
 
-def dist_mean_scalar(x: float | int) -> float:
+def dist_mean_scalar(x: float) -> float:
+    """Compute mean of scalar across all ranks.
+
+    :param x: Scalar value from current rank
+    :return: Mean value across all ranks
+    """
     if not (dist.is_available() and dist.is_initialized()):
         return float(x)
 
@@ -126,14 +157,25 @@ def dist_mean_scalar(x: float | int) -> float:
     return t.item()
 
 
-def wrap_model(model):
+def wrap_model(model: torch.nn.Module) -> DistributedDataParallel:
+    """Wrap model for distributed data parallel training.
+
+    :param model: PyTorch model to wrap
+    :return: DDP-wrapped model
+    """
     local_rank = int(os.environ["LOCAL_RANK"])
     return DistributedDataParallel(
         model, device_ids=[local_rank], output_device=local_rank
     )
 
 
-def get_run_name(train_cfg, vlm_cfg):
+def get_run_name(train_cfg: config.TrainConfig, vlm_cfg: config.VLMConfig) -> str:
+    """Generate descriptive run name for logging and checkpointing.
+
+    :param train_cfg: Training configuration
+    :param vlm_cfg: VLM model configuration
+    :return: Formatted run name string
+    """
     dataset_size = (
         "full_ds"
         if train_cfg.data_cutoff_idx is None
@@ -151,8 +193,12 @@ def get_run_name(train_cfg, vlm_cfg):
     return f"nanoVLM_{vit}_{mp}_{llm}_{num_gpus}_{dataset_size}_{batch_size}_{max_training_steps}_{learning_rate}_{date}"
 
 
-def validate_num_workers(train_workers, val_workers):
-    """Validate that number of workers doesn't exceed CPU count."""
+def validate_num_workers(train_workers: int, val_workers: int) -> None:
+    """Validate that number of workers doesn't exceed CPU count.
+
+    :param train_workers: Number of training dataloader workers
+    :param val_workers: Number of validation dataloader workers
+    """
     cpu_count = os.cpu_count()
     total_workers = train_workers + val_workers
 
@@ -178,7 +224,20 @@ def validate_num_workers(train_workers, val_workers):
         )
 
 
-def get_dataloaders(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
+def get_dataloaders(
+    train_cfg: config.TrainConfig,
+    vlm_cfg: config.VLMConfig,
+    train_num_workers: int = 4,
+    val_num_workers: int = 2,
+) -> Tuple[DataLoader, DataLoader]:
+    """Create training and validation dataloaders.
+
+    :param train_cfg: Training configuration
+    :param vlm_cfg: VLM model configuration
+    :param train_num_workers: Number of workers for training dataloader
+    :param val_num_workers: Number of workers for validation dataloader
+    :return: Tuple of (train_loader, val_loader)
+    """
     print(f"Getting dataloaders from {train_cfg.train_dataset_path}")
 
     # Validate worker configuration
@@ -339,7 +398,14 @@ def get_dataloaders(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
 
 # Cosine learning rate schedule with warmup (from Karpathy)
 # https://github.com/karpathy/build-nanogpt/blob/master/train_gpt2.py#L353
-def get_lr(it, max_lr, max_steps):
+def get_lr(it: int, max_lr: float, max_steps: int) -> float:
+    """Calculate learning rate with cosine decay and warmup.
+
+    :param it: Current iteration/step
+    :param max_lr: Maximum learning rate
+    :param max_steps: Total training steps
+    :return: Adjusted learning rate for current step
+    """
     min_lr = max_lr * 0.1
     warmup_steps = max_steps * 0.03
     # 1) linear warmup for warmup_iters steps
@@ -357,7 +423,19 @@ def get_lr(it, max_lr, max_steps):
     return min_lr + coeff * (max_lr - min_lr)
 
 
-def train(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
+def train(
+    train_cfg: config.TrainConfig,
+    vlm_cfg: config.VLMConfig,
+    train_num_workers: int = 4,
+    val_num_workers: int = 2,
+) -> None:
+    """Main training loop for VLM model.
+
+    :param train_cfg: Training configuration
+    :param vlm_cfg: VLM model configuration
+    :param train_num_workers: Number of workers for training dataloader
+    :param val_num_workers: Number of workers for validation dataloader
+    """
     train_loader, val_loader = get_dataloaders(
         train_cfg, vlm_cfg, train_num_workers, val_num_workers
     )
@@ -988,7 +1066,10 @@ def train(train_cfg, vlm_cfg, train_num_workers=4, val_num_workers=2):
 
 
 def get_parser() -> argparse.ArgumentParser:
-    """handler/helper for argparse CLI"""
+    """Create argument parser for command-line interface.
+
+    :return: Configured ArgumentParser instance
+    """
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         epilog="See models/config.py for defaults & additional configuration options.",
@@ -1088,7 +1169,8 @@ def get_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main():
+def main() -> None:
+    """Main entry point for training script."""
     global PG_CPU
 
     args = get_parser().parse_args()
