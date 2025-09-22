@@ -1,23 +1,33 @@
 import logging
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
+from transformers import PreTrainedTokenizer
 
 from data.processors import get_image_string
 
 
 class BaseDataset(Dataset):
+    """Base dataset class for vision-language tasks with quality filtering.
+    
+    :param dataset: Source dataset to wrap
+    :param tokenizer: Tokenizer for text processing  
+    :param image_processor: Image preprocessing pipeline
+    :param mp_image_token_length: Number of tokens per image patch
+    :param *_min_rating: Minimum quality ratings for filtering samples
+    """
     def __init__(
         self,
-        dataset,
-        tokenizer,
-        image_processor,
-        mp_image_token_length,
-        relevance_min_rating=1,
-        image_correspondence_min_rating=1,
-        visual_dependency_min_rating=1,
-        formatting_min_rating=1,
+        dataset: Any,
+        tokenizer: PreTrainedTokenizer,
+        image_processor: Any,
+        mp_image_token_length: int,
+        relevance_min_rating: int = 1,
+        image_correspondence_min_rating: int = 1,
+        visual_dependency_min_rating: int = 1,
+        formatting_min_rating: int = 1,
     ):
         self.dataset = dataset
         self.tokenizer = tokenizer
@@ -29,10 +39,14 @@ class BaseDataset(Dataset):
         self.formatting_min_rating = formatting_min_rating
         self.prefix_len = self._get_prefix_len()
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.dataset)
 
-    def _get_prefix_len(self):
+    def _get_prefix_len(self) -> int:
+        """Calculate prefix length for assistant responses in chat template.
+        
+        :return: Number of tokens in assistant response prefix
+        """
         random_string_5_letters = "xzyvd"
         random_string_chat_templated = self.tokenizer.apply_chat_template(
             [{"role": "assistant", "content": random_string_5_letters}],
@@ -46,7 +60,15 @@ class BaseDataset(Dataset):
             self.tokenizer.encode(random_string_chat_templated[:random_string_location])
         )
 
-    def _get_messages(self, item, splitted_image_counts):
+    def _get_messages(
+        self, item: Dict[str, Any], splitted_image_counts: List[Tuple[int, int]]
+    ) -> List[Dict[str, str]]:
+        """Extract and filter messages from dataset item based on quality ratings.
+        
+        :param item: Dataset item containing texts and ratings
+        :param splitted_image_counts: List of (height, width) split counts
+        :return: List of message dictionaries with role and content
+        """
         messages = []
         for index, text in enumerate(item["texts"]):
             try:
@@ -101,7 +123,14 @@ class BaseDataset(Dataset):
 
         return messages
 
-    def _process_images(self, images):
+    def _process_images(
+        self, images: List[Image.Image]
+    ) -> Tuple[List[torch.Tensor], List[Tuple[int, int]]]:
+        """Process and split images for model input.
+        
+        :param images: List of PIL images
+        :return: Tuple of (processed image tensors, split counts)
+        """
         processed_images = []
         splitted_image_counts = []
         for image in images:
@@ -122,7 +151,14 @@ class BaseDataset(Dataset):
                 raise ValueError(f"Error processing image: {image}")
         return processed_images, splitted_image_counts
 
-    def _prepare_inputs_and_loss_mask(self, messages):
+    def _prepare_inputs_and_loss_mask(
+        self, messages: List[Dict[str, str]]
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Prepare tokenized inputs and create mask for loss computation.
+        
+        :param messages: List of conversation messages
+        :return: Tuple of (input_ids, loss_mask, attention_mask)
+        """
         conv_ids = self.tokenizer.apply_chat_template(
             messages,
             tokenize=True,
@@ -154,16 +190,34 @@ class BaseDataset(Dataset):
 
 
 class VQADataset(BaseDataset):  # Visual Question Answering Dataset
-    def iter_for_worker(self, worker_id, num_workers):
+    """Dataset for visual question answering tasks with image-text pairs."""
+    
+    def iter_for_worker(self, worker_id: int, num_workers: int) -> Any:
+        """Iterate over dataset subset for distributed workers.
+        
+        :param worker_id: ID of current worker
+        :param num_workers: Total number of workers
+        :return: Generator of processed data items
+        """
         # dataset = split_dataset_by_node(self.dataset, rank=worker_id, world_size=num_workers)
         for data in self.dataset:
             yield self._process_data(data)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Optional[Dict[str, torch.Tensor]]:
+        """Get processed item from dataset.
+        
+        :param idx: Index of item to retrieve
+        :return: Dictionary with images, input_ids, attention_mask, labels
+        """
         item = self.dataset[idx]
         return self._process_data(item)
 
-    def _process_data(self, item):
+    def _process_data(self, item: Dict[str, Any]) -> Optional[Dict[str, torch.Tensor]]:
+        """Process single dataset item into model inputs.
+        
+        :param item: Raw dataset item
+        :return: Processed tensors ready for model input
+        """
         # Handle images (should be a list)
         if item["images"] is None:
             images_data = []
@@ -192,7 +246,15 @@ class VQADataset(BaseDataset):  # Visual Question Answering Dataset
             "labels": labels,
         }
 
-    def _get_labels(self, input_ids, mask):
+    def _get_labels(
+        self, input_ids: torch.Tensor, mask: torch.Tensor
+    ) -> torch.Tensor:
+        """Create labels for language modeling loss computation.
+        
+        :param input_ids: Token IDs [seq_len]
+        :param mask: Boolean mask for loss computation [seq_len]
+        :return: Labels tensor with -100 for ignored tokens [seq_len]
+        """
         labels = input_ids.clone().masked_fill(~mask, -100)
         labels = labels.roll(-1)  # Shift labels for causal LM
         labels[-1] = -100  # Last token has no target

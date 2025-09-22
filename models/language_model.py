@@ -1,4 +1,5 @@
 import math
+from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -79,7 +80,7 @@ class RotaryEmbedding(nn.Module):
         self.attention_scaling = cfg.lm_attn_scaling
 
     @torch.no_grad()
-    def forward(self, position_ids: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, position_ids: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Compute rotary positional embeddings (cosine and sine components).
 
@@ -122,8 +123,10 @@ class RotaryEmbedding(nn.Module):
 
 
 def rotate_half(x: torch.Tensor) -> torch.Tensor:
-    """
-    Rotates the input by dividing the hidden dimension to two, then swapping and negating dimensions.
+    """Rotates input by swapping and negating half of hidden dimensions.
+    
+    :param x: Input tensor
+    :return: Rotated tensor
     """
     x1, x2 = x.chunk(2, dim=-1)
     return torch.cat((-x2, x1), dim=-1)
@@ -136,7 +139,7 @@ def apply_rotary_pos_embd(
     cos: torch.Tensor,
     sin: torch.Tensor,
     unsqueeze_dim: int = 1,
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Applies rotary positional embeddings to query and key tensors in attention mechanisms.
 
@@ -239,9 +242,9 @@ class LanguageModelGroupedQueryAttention(nn.Module):
         x: torch.Tensor,
         cos: torch.Tensor,
         sin: torch.Tensor,
-        attention_mask=None,
-        block_kv_cache=None,
-    ) -> tuple[torch.Tensor, dict]:
+        attention_mask: Optional[torch.Tensor] = None,
+        block_kv_cache: Optional[Dict[str, torch.Tensor]] = None,
+    ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
         """
         Forward pass for grouped query attention.
 
@@ -392,7 +395,7 @@ class LanguageModelMLP(nn.Module):
         self.up_proj = nn.Linear(self.embd_dim, self.inter_dim, bias=False)
         self.down_proj = nn.Linear(self.inter_dim, self.embd_dim, bias=False)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass through the gated MLP block.
 
@@ -412,6 +415,10 @@ class LanguageModelMLP(nn.Module):
 
 # https://github.com/meta-llama/llama3/blob/main/llama/model.py#L222
 class LanguageModelBlock(nn.Module):
+    """Transformer decoder block with attention and MLP layers.
+    
+    :param cfg: VLMConfig containing language model configuration
+    """
     def __init__(self, cfg):
         super().__init__()
         self.mlp = LanguageModelMLP(cfg)
@@ -424,9 +431,9 @@ class LanguageModelBlock(nn.Module):
         x: torch.Tensor,
         cos: torch.Tensor,
         sin: torch.Tensor,
-        attention_mask: torch.Tensor = None,
-        block_kv_cache: dict = None,
-    ):
+        attention_mask: Optional[torch.Tensor] = None,
+        block_kv_cache: Optional[Dict[str, torch.Tensor]] = None,
+    ) -> Tuple[torch.Tensor, Optional[Dict[str, torch.Tensor]]]:
         """
         Forward pass of the Transformer block.
 
@@ -459,6 +466,10 @@ class LanguageModelBlock(nn.Module):
 
 # https://github.com/meta-llama/llama3/blob/main/llama/model.py#L251
 class LanguageModel(nn.Module):
+    """Decoder-only transformer language model based on Llama architecture.
+    
+    :param cfg: VLMConfig containing full language model configuration
+    """
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
@@ -477,7 +488,11 @@ class LanguageModel(nn.Module):
 
         self.apply(self._init_weights)
 
-    def _init_weights(self, module):
+    def _init_weights(self, module: nn.Module) -> None:
+        """Initialize module weights using normal distribution.
+        
+        :param module: Module to initialize
+        """
         if isinstance(module, nn.Linear):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
             if module.bias is not None:
@@ -490,10 +505,10 @@ class LanguageModel(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
-        attention_mask: torch.Tensor = None,
-        kv_cache: list[dict] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        kv_cache: Optional[List[Dict[str, torch.Tensor]]] = None,
         start_pos: int = 0,
-    ):
+    ) -> Tuple[torch.Tensor, List[Optional[Dict[str, torch.Tensor]]]]:
         """
         Performs a forward pass through the language model.
 
@@ -615,7 +630,12 @@ class LanguageModel(nn.Module):
 
     # Load the model from a pretrained HuggingFace model (we don't want to have to train the Language Backbone from scratch)
     @classmethod
-    def from_pretrained(cls, cfg):
+    def from_pretrained(cls, cfg) -> 'LanguageModel':
+        """Load pretrained language model weights from HuggingFace.
+        
+        :param cfg: VLMConfig with model specification in lm_model_type
+        :return: LanguageModel with loaded pretrained weights
+        """
         import json
 
         import safetensors
@@ -783,7 +803,6 @@ class LanguageModel(nn.Module):
                             )
                             # Load updated weights
                             model.load_state_dict(sd)
-                        lm_head_loaded = True
                         break
 
         # Handle weight tying (if needed)

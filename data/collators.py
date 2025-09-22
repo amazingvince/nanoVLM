@@ -1,11 +1,23 @@
+from typing import Any, Dict, List, Optional
+
 import torch
+from transformers import PreTrainedTokenizer
 
 
 class BaseCollator(object):
-    def __init__(self, tokenizer):
+    """Base collator for batching and padding sequences.
+    
+    :param tokenizer: Tokenizer for padding operations
+    """
+    def __init__(self, tokenizer: PreTrainedTokenizer):
         self.tokenizer = tokenizer
 
-    def _pad_batch(self, batch, max_length):
+    def _pad_batch(self, batch: Dict[str, List], max_length: int) -> None:
+        """Pad batch items to uniform length.
+        
+        :param batch: Dictionary containing input_ids, labels, attention_mask
+        :param max_length: Target length for padding
+        """
         batch["input_ids"] = [
             torch.nn.functional.pad(
                 ids, (max_length - len(ids), 0), value=self.tokenizer.pad_token_id
@@ -25,7 +37,15 @@ class BaseCollator(object):
             for attention_mask in batch["attention_mask"]
         ]
 
-    def prepare_batch(self, batch, max_length=None):
+    def prepare_batch(
+        self, batch: List[Dict[str, Any]], max_length: Optional[int] = None
+    ) -> Dict[str, torch.Tensor]:
+        """Prepare batch by filtering, padding, and stacking tensors.
+        
+        :param batch: List of sample dictionaries
+        :param max_length: Optional maximum sequence length
+        :return: Dictionary with stacked tensors ready for model input
+        """
         # 1) Handle empty
         if not batch:
             return {"input_ids": [], "labels": [], "attention_mask": [], "images": []}
@@ -61,7 +81,15 @@ class BaseCollator(object):
             "labels": torch.stack(batch["labels"]),
         }
 
-    def _discard_samples_that_are_too_long(self, batch, max_length):
+    def _discard_samples_that_are_too_long(
+        self, batch: Dict[str, List], max_length: int
+    ) -> Dict[str, List]:
+        """Filter out samples exceeding maximum length.
+        
+        :param batch: Batch dictionary with lists of tensors
+        :param max_length: Maximum allowed sequence length
+        :return: Filtered batch dictionary
+        """
         filtered = [
             (ids, label, attn, img)
             for ids, label, attn, img in zip(
@@ -84,13 +112,23 @@ class BaseCollator(object):
 
 
 class VQACollator(BaseCollator):  # Visual Question Answering Collator
-    def __init__(self, tokenizer, max_length):
+    """Collator for visual question answering tasks with special label padding.
+    
+    :param tokenizer: Tokenizer for padding operations
+    :param max_length: Maximum sequence length for padding
+    """
+    def __init__(self, tokenizer: PreTrainedTokenizer, max_length: int):
         self.max_length = max_length
         super().__init__(tokenizer)
 
     def _pad_batch(
-        self, batch, max_length
-    ):  # Reimplementing to use -100 as the pad value for labels, so that it's ignored by the loss
+        self, batch: Dict[str, List], max_length: int
+    ) -> None:  # Reimplementing to use -100 as the pad value for labels, so that it's ignored by the loss
+        """Pad batch with -100 for labels to ignore in loss computation.
+        
+        :param batch: Batch dictionary to pad
+        :param max_length: Target padding length
+        """
         batch["input_ids"] = [
             torch.nn.functional.pad(
                 ids, (max_length - len(ids), 0), value=self.tokenizer.pad_token_id
@@ -108,6 +146,11 @@ class VQACollator(BaseCollator):  # Visual Question Answering Collator
             for attention_mask in batch["attention_mask"]
         ]
 
-    def __call__(self, batch):
+    def __call__(self, batch: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
+        """Process batch for DataLoader.
+        
+        :param batch: List of sample dictionaries
+        :return: Collated batch dictionary
+        """
         batch = self.prepare_batch(batch, max_length=self.max_length)
         return batch

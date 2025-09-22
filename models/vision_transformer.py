@@ -7,6 +7,10 @@ import torch.nn.functional as F
 
 # https://github.com/huggingface/transformers/blob/main/src/transformers/models/siglip/modeling_siglip.py#L245
 class ViTPatchEmbeddings(nn.Module):
+    """Patch embedding layer for Vision Transformer that converts images to patch embeddings.
+    
+    :param cfg: VLMConfig containing vision transformer configuration
+    """
     def __init__(self, cfg):
         super().__init__()
 
@@ -35,7 +39,12 @@ class ViTPatchEmbeddings(nn.Module):
                 torch.rand(1, self.num_patches, self.embd_dim)
             )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Convert input image to patch embeddings with position encoding.
+        
+        :param x: Input image tensor [batch_size, 3, height, width]
+        :return: Patch embeddings [batch_size, num_patches, hidden_dim]
+        """
         x = self.conv(x)  # extract patches
         x = x.flatten(2)  # flatten the patches into a single dimension
         x = x.transpose(1, 2)  # transpose to (batch_size, num_patches, hidden_dim)
@@ -51,6 +60,10 @@ class ViTPatchEmbeddings(nn.Module):
 # https://github.com/huggingface/transformers/blob/main/src/transformers/models/siglip/modeling_siglip.py#L381
 # https://github.com/karpathy/nanoGPT/blob/master/model.py#L29
 class ViTMultiHeadAttention(nn.Module):
+    """Multi-head self-attention mechanism for Vision Transformer.
+    
+    :param cfg: VLMConfig containing attention configuration
+    """
     def __init__(self, cfg):
         super().__init__()
 
@@ -77,7 +90,12 @@ class ViTMultiHeadAttention(nn.Module):
                 "Warning: scaled dot product attention not available. Using standard attention in ViT."
             )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply multi-head self-attention to input.
+        
+        :param x: Input tensor [batch_size, seq_len, hidden_dim]
+        :return: Attention output [batch_size, seq_len, hidden_dim]
+        """
         B, T, C = x.size()
 
         qkv = self.qkv_proj(x)
@@ -120,6 +138,10 @@ class ViTMultiHeadAttention(nn.Module):
 
 # https://github.com/huggingface/transformers/blob/main/src/transformers/models/siglip/modeling_siglip.py#L453
 class ViTMLP(nn.Module):
+    """Two-layer MLP with GELU activation for Vision Transformer blocks.
+    
+    :param cfg: VLMConfig containing MLP dimensions
+    """
     def __init__(self, cfg):
         super().__init__()
         self.activation_fn = nn.GELU(approximate="tanh")
@@ -127,7 +149,12 @@ class ViTMLP(nn.Module):
         self.fc2 = nn.Linear(cfg.vit_inter_dim, cfg.vit_hidden_dim)
         self.dropout = nn.Dropout(cfg.vit_dropout)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply MLP transformation.
+        
+        :param x: Input tensor [batch_size, seq_len, hidden_dim]
+        :return: MLP output [batch_size, seq_len, hidden_dim]
+        """
         x = self.fc1(x)
         x = self.activation_fn(x)
         x = self.fc2(x)
@@ -137,6 +164,10 @@ class ViTMLP(nn.Module):
 
 # https://github.com/karpathy/nanoGPT/blob/master/model.py#L94
 class ViTBlock(nn.Module):
+    """Single transformer block with attention and MLP layers.
+    
+    :param cfg: VLMConfig containing block configuration
+    """
     def __init__(self, cfg):
         super().__init__()
         self.ln1 = nn.LayerNorm(cfg.vit_hidden_dim, eps=cfg.vit_ln_eps)
@@ -144,13 +175,22 @@ class ViTBlock(nn.Module):
         self.ln2 = nn.LayerNorm(cfg.vit_hidden_dim, eps=cfg.vit_ln_eps)
         self.mlp = ViTMLP(cfg)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply transformer block with residual connections.
+        
+        :param x: Input tensor [batch_size, seq_len, hidden_dim]
+        :return: Block output [batch_size, seq_len, hidden_dim]
+        """
         x = x + self.attn(self.ln1(x))
         x = x + self.mlp(self.ln2(x))
         return x
 
 
 class ViT(nn.Module):
+    """Vision Transformer model for extracting visual features from images.
+    
+    :param cfg: VLMConfig containing full vision transformer configuration
+    """
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
@@ -162,7 +202,11 @@ class ViT(nn.Module):
 
         self.apply(self._init_weights)
 
-    def _init_weights(self, module):
+    def _init_weights(self, module: nn.Module) -> None:
+        """Initialize weights using normal distribution for linear/conv layers.
+        
+        :param module: Module to initialize
+        """
         if isinstance(module, nn.Linear):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
             if module.bias is not None:
@@ -175,7 +219,12 @@ class ViT(nn.Module):
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Extract visual features from input images.
+        
+        :param x: Input images [batch_size, 3, height, width]
+        :return: Visual features [batch_size, num_patches, hidden_dim] or [batch_size, hidden_dim] if cls_flag
+        """
         x = self.patch_embedding(x)
         x = self.dropout(x)
         for block in self.blocks:
@@ -191,7 +240,12 @@ class ViT(nn.Module):
 
     # Load the model from a pretrained HuggingFace model (we don't want to have to train the Vision Backbone from scratch)
     @classmethod
-    def from_pretrained(cls, cfg):
+    def from_pretrained(cls, cfg) -> 'ViT':
+        """Load pretrained SigLIP vision model weights from HuggingFace.
+        
+        :param cfg: VLMConfig with model specification in vit_model_type
+        :return: ViT model with loaded pretrained weights
+        """
         import safetensors
         from huggingface_hub import hf_hub_download
         from transformers import SiglipVisionConfig

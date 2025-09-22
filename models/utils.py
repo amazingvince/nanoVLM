@@ -8,7 +8,15 @@ import torch.nn as nn
 
 
 # Used to check our models performance on multiple choice tasks. This can also be done in a more involved way with e.g. LLM-as-a-judge
-def check_multiple_choice_with_regex(model_outputs, correct_answers):
+def check_multiple_choice_with_regex(
+    model_outputs: List[str], correct_answers: List[str]
+) -> List[bool]:
+    """Check if model outputs match correct multiple choice answers using regex.
+    
+    :param model_outputs: List of model-generated text outputs
+    :param correct_answers: List of correct answer letters (A, B, C, etc.)
+    :return: List of booleans indicating whether each answer is correct
+    """
     results = []
     for model_output, correct_answer in zip(model_outputs, correct_answers):
         # Strip any trailing newlines and convert to uppercase
@@ -30,9 +38,19 @@ def check_multiple_choice_with_regex(model_outputs, correct_answers):
     return results
 
 
-def top_k_top_p_filtering(logits, top_k=0, top_p=1.0, filter_value=-float("Inf")):
-    """
-    Apply top-k and/or nucleus (top-p) filtering to logits.
+def top_k_top_p_filtering(
+    logits: torch.Tensor,
+    top_k: int = 0,
+    top_p: float = 1.0,
+    filter_value: float = -float("Inf"),
+) -> torch.Tensor:
+    """Apply top-k and nucleus (top-p) filtering to logits for sampling.
+    
+    :param logits: Logits tensor [batch_size, vocab_size]
+    :param top_k: Keep only top k tokens with highest probability
+    :param top_p: Keep smallest set of tokens with cumulative probability >= p
+    :param filter_value: Value to assign filtered-out logits
+    :return: Filtered logits tensor
     """
     top_k = min(top_k, logits.size(-1))  # Safety
 
@@ -60,8 +78,9 @@ def top_k_top_p_filtering(logits, top_k=0, top_p=1.0, filter_value=-float("Inf")
 
 
 def configure_tf32() -> bool:
-    """
-    Enable TF32 precision for GPUs with compute capability >= 8.0 (Ampere+).
+    """Enable TF32 precision for GPUs with compute capability >= 8.0 (Ampere+).
+    
+    :return: True if TF32 was enabled, False otherwise
     """
     if not torch.cuda.is_available():
         logging.info("No GPU detected, running on CPU.")
@@ -89,6 +108,7 @@ def configure_tf32() -> bool:
 
 @dataclass
 class _LayerSummary:
+    """Summary statistics for a single layer in the model."""
     name: str
     param_shape: Optional[torch.Size]
     inclusive_total_params: int
@@ -98,9 +118,11 @@ class _LayerSummary:
 def model_summary(
     model: nn.Module, max_depth: int = 4, show_param_shapes: bool = False
 ) -> None:
-    """
-    Prints a hierarchical summary of a PyTorch model with *inclusive* parameter counts.
-    Counts are robust to shared/tied parameters (each Parameter is counted once per subtree).
+    """Print hierarchical summary of model with parameter counts.
+    
+    :param model: PyTorch model to summarize
+    :param max_depth: Maximum depth of hierarchy to display
+    :param show_param_shapes: Whether to show parameter shapes
     """
 
     # ---------- formatting helpers ----------
@@ -133,9 +155,12 @@ def model_summary(
     summary_list: List[_LayerSummary] = []
 
     def summarize_recursive(module: nn.Module, depth: int, prefix: str) -> Set[int]:
-        """
-        Return the set of unique Parameter IDs reachable from this module's subtree.
-        Also appends a _LayerSummary for this module.
+        """Recursively build summary for module subtree.
+        
+        :param module: Current module being processed
+        :param depth: Current depth in hierarchy
+        :param prefix: Indentation prefix for display
+        :return: Set of unique parameter IDs in subtree
         """
         # If we're beyond the print depth, just return the deduped set upward
         if depth > max_depth:

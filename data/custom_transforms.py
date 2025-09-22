@@ -8,14 +8,12 @@ from torchvision.transforms.functional import InterpolationMode, resize
 
 
 class DynamicResize(torch.nn.Module):
-    """
-    Resize so that:
-      * the longer side ≤ `max_side_len` **and** is divisible by `patch_size`
-      * the shorter side keeps aspect ratio and is also divisible by `patch_size`
-    Optionally forbids up-scaling.
-
-    Works on PIL Images, (C, H, W) tensors, or (B, C, H, W) tensors.
-    Returns the same type it receives.
+    """Dynamic image resizing to ensure dimensions are divisible by patch size.
+    
+    :param patch_size: Size of patches for vision transformer
+    :param max_side_len: Maximum allowed side length
+    :param resize_to_max_side_len: Whether to always resize to max_side_len
+    :param interpolation: Interpolation mode for resizing
     """
 
     def __init__(
@@ -34,7 +32,12 @@ class DynamicResize(torch.nn.Module):
 
     # ------------------------------------------------------------
     def _get_new_hw(self, h: int, w: int) -> Tuple[int, int]:
-        """Compute target (h, w) divisible by patch_size."""
+        """Compute target dimensions divisible by patch size.
+        
+        :param h: Original height
+        :param w: Original width
+        :return: Tuple of (new_height, new_width)
+        """
         long, short = (w, h) if w >= h else (h, w)
 
         # 1) upscale long side
@@ -54,7 +57,14 @@ class DynamicResize(torch.nn.Module):
         return (target_short, target_long) if w >= h else (target_long, target_short)
 
     # ------------------------------------------------------------
-    def forward(self, img: Union[Image.Image, torch.Tensor]):
+    def forward(
+        self, img: Union[Image.Image, torch.Tensor]
+    ) -> Union[Image.Image, torch.Tensor]:
+        """Resize input image maintaining aspect ratio.
+        
+        :param img: Input PIL Image or tensor
+        :return: Resized image in same format as input
+        """
         if isinstance(img, Image.Image):
             w, h = img.size
             new_h, new_w = self._get_new_hw(h, w)
@@ -82,11 +92,9 @@ class DynamicResize(torch.nn.Module):
 
 
 class SplitImage(torch.nn.Module):
-    """Split (B, C, H, W) image tensor into square patches.
-
-    Returns:
-        patches: (B·n_h·n_w, C, patch_size, patch_size)
-        grid:    (n_h, n_w)  - number of patches along H and W
+    """Split image tensor into square patches for vision transformer.
+    
+    :param patch_size: Size of each square patch
     """
 
     def __init__(self, patch_size: int) -> None:
@@ -94,6 +102,11 @@ class SplitImage(torch.nn.Module):
         self.p = patch_size
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, Tuple[int, int]]:
+        """Split input tensor into patches.
+        
+        :param x: Input tensor [batch, channels, height, width]
+        :return: Tuple of (patches [B*n_h*n_w, C, p, p], grid (n_h, n_w))
+        """
         if x.ndim == 3:  # add batch dim if missing
             x = x.unsqueeze(0)
 
@@ -111,12 +124,21 @@ class SplitImage(torch.nn.Module):
 
 
 class GlobalAndSplitImages(torch.nn.Module):
+    """Split images into patches and add global context patch.
+    
+    :param patch_size: Size of each square patch
+    """
     def __init__(self, patch_size: int):
         super().__init__()
         self.p = patch_size
         self.splitter = SplitImage(patch_size)
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, Tuple[int, int]]:
+        """Split image and prepend global context patch.
+        
+        :param x: Input tensor [batch, channels, height, width]
+        :return: Tuple of (patches with global context, grid dimensions)
+        """
         if x.ndim == 3:
             x = x.unsqueeze(0)
 

@@ -2,7 +2,7 @@ import itertools
 import random
 import threading
 from queue import Queue
-from typing import Iterator
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 import torch
 from torch.utils.data import IterableDataset, get_worker_info
@@ -11,9 +11,20 @@ random.seed(42)  # Set the random seed to the meaning of life for good luck
 
 
 class ConstantLengthDataset(IterableDataset):
+    """Iterable dataset that packs variable-length sequences into fixed-length chunks.
+    
+    :param dataset: Base dataset to iterate over
+    :param infinite: Whether to loop infinitely over dataset
+    :param max_sample_length: Maximum length for individual samples
+    :param seq_length: Target fixed length for packed sequences
+    :param num_of_sequences: Number of sequences to buffer
+    :param queue_size: Size of prefetch queue
+    :param max_images_per_example: Maximum images per sample
+    :param max_images_per_knapsack: Maximum images per packed sequence
+    """
     def __init__(
         self,
-        dataset,
+        dataset: Any,
         infinite: bool = False,
         max_sample_length: int = 1024,
         seq_length: int = 1024,
@@ -36,34 +47,25 @@ class ConstantLengthDataset(IterableDataset):
             self.dataset.mp_image_token_length + 198
         )  # 198 is the average tokens for the cauldron dataset
 
-    def __len__(self):
+    def __len__(self) -> int:
         return int(
             len(self.dataset) * self._average_length_per_sample / self.seq_length
         )
 
-    def __iter__(self) -> Iterator[dict]:
-        """
-        Returns an iterator over the dataset that yields fixed-length sequences for training.
-
-        The iterator uses a producer-consumer pattern with a background thread to efficiently
-        pre-fetch and buffer samples. The producer thread continuously reads from the base
-        dataset and fills a queue, while the main thread consumes from the queue.
-
-        The dataset is automatically sharded across workers when using num_workers > 1.
-
-        Returns:
-            Iterator[dict]: An iterator that yields training samples with the following structure:
-                - input_ids: Tensor of token ids of shape (seq_length,)
-                - labels: Tensor of labels of shape (seq_length,)
-                - attention_mask: Tensor of attention mask of shape (seq_length,)
-                - images: List of processed image tensors
+    def __iter__(self) -> Iterator[Dict[str, Any]]:
+        """Yield fixed-length sequences using producer-consumer pattern.
+        
+        :return: Iterator yielding dictionaries with input_ids, labels, attention_mask, images
         """
         worker_info = get_worker_info()
         worker_id = worker_info.id if worker_info else 0
         num_workers = worker_info.num_workers if worker_info else 1
 
-        def make_base_iterator():
-            """Return a (sharded) iterator over the underlying dataset."""
+        def make_base_iterator() -> Iterator[Any]:
+            """Return a (sharded) iterator over the underlying dataset.
+            
+            :return: Iterator over dataset items
+            """
             all_indices = range(len(self.dataset))
 
             # Shard the *indices* first, before any data is fetched.
@@ -97,9 +99,14 @@ class ConstantLengthDataset(IterableDataset):
 
     def _producer(
         self,
-        make_iterator,  # a zero-arg lambda that returns a fresh (possibly sharded) iterator
+        make_iterator: Callable[[], Iterator[Any]],
         queue: Queue,
-    ):
+    ) -> None:
+        """Producer thread that fills queue with packed sequences.
+        
+        :param make_iterator: Factory function for creating dataset iterators
+        :param queue: Queue to fill with batches
+        """
         """Runs in a separate daemon thread and keeps `queue` full."""
         iterator = make_iterator()
         more_examples = True
@@ -172,8 +179,20 @@ class ConstantLengthDataset(IterableDataset):
         queue.put(self._sentinel)
 
     def _balanced_greedy_knapsack(
-        self, buffer, L, delta=0, max_images_per_knapsack=None
-    ):
+        self,
+        buffer: List[Dict[str, Any]],
+        L: int,
+        delta: int = 0,
+        max_images_per_knapsack: Optional[int] = None,
+    ) -> List[List[int]]:
+        """Pack samples into groups using greedy knapsack algorithm.
+        
+        :param buffer: List of samples to pack
+        :param L: Target length for each knapsack
+        :param delta: Additional knapsacks to create for balance
+        :param max_images_per_knapsack: Maximum images per knapsack
+        :return: List of groups, each containing sample indices
+        """
         # Extract lengths and image counts from buffer
         lengths = [len(x["input_ids"]) for x in buffer]
         image_counts = [len(x["images"]) for x in buffer]
@@ -224,7 +243,16 @@ class ConstantLengthDataset(IterableDataset):
         )  # Knapsacks are semi-ordered after packing, thanks Luis for noticing!
         return [g for g in knapsack_groups if g]
 
-    def _pack_one_group(self, group_indices, batch, max_len):
+    def _pack_one_group(
+        self, group_indices: List[int], batch: List[Dict[str, Any]], max_len: int
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, List[torch.Tensor]]:
+        """Pack a group of samples into fixed-length tensors.
+        
+        :param group_indices: Indices of samples to pack
+        :param batch: List of all samples
+        :param max_len: Maximum sequence length
+        :return: Tuple of (input_ids, labels, attention_mask, images)
+        """
         ids, lbl, am, ims = [], [], [], []
 
         for i in group_indices:

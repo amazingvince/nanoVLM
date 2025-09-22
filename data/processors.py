@@ -1,12 +1,25 @@
+from typing import Dict, List, Optional, Tuple
+
 import torchvision.transforms as transforms
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, PreTrainedTokenizer
 
 from data.custom_transforms import DynamicResize, GlobalAndSplitImages
 
-TOKENIZERS_CACHE = {}
+TOKENIZERS_CACHE: Dict[str, PreTrainedTokenizer] = {}
 
 
-def get_tokenizer(name, extra_special_tokens=None, chat_template=None):
+def get_tokenizer(
+    name: str,
+    extra_special_tokens: Optional[Dict[str, str]] = None,
+    chat_template: Optional[str] = None,
+) -> PreTrainedTokenizer:
+    """Get or create a cached tokenizer with optional special tokens and chat template.
+    
+    :param name: Model name or path for tokenizer
+    :param extra_special_tokens: Dictionary of extra special tokens to add
+    :param chat_template: Custom chat template for tokenizer
+    :return: Configured tokenizer instance
+    """
     if name not in TOKENIZERS_CACHE:
         tokenizer_init_kwargs = {"use_fast": True}
         if extra_special_tokens is not None:
@@ -23,8 +36,17 @@ def get_tokenizer(name, extra_special_tokens=None, chat_template=None):
 
 
 def get_image_processor(
-    max_img_size, splitted_image_size, resize_to_max_side_len=False
-):
+    max_img_size: int,
+    splitted_image_size: int,
+    resize_to_max_side_len: bool = False,
+) -> transforms.Compose:
+    """Create image preprocessing pipeline with dynamic resizing and splitting.
+    
+    :param max_img_size: Maximum image size in pixels
+    :param splitted_image_size: Size of split image patches
+    :param resize_to_max_side_len: Whether to resize to max side length
+    :return: Composed image transformation pipeline
+    """
     return transforms.Compose(
         [
             DynamicResize(splitted_image_size, max_img_size, resize_to_max_side_len),
@@ -34,7 +56,18 @@ def get_image_processor(
     )
 
 
-def get_image_string(tokenizer, splitted_image_counts, mp_image_token_length):
+def get_image_string(
+    tokenizer: PreTrainedTokenizer,
+    splitted_image_counts: List[Tuple[int, int]],
+    mp_image_token_length: int,
+) -> str:
+    """Generate tokenized string representation for split images with position tokens.
+    
+    :param tokenizer: Tokenizer with image special tokens
+    :param splitted_image_counts: List of (height, width) tuples for split counts
+    :param mp_image_token_length: Number of image tokens per patch
+    :return: String with image tokens and position markers
+    """
     image_string = ""
     # splitted_image_counts is a list of tuples (n_h, n_w)
     for idx, (n_h, n_w) in enumerate(splitted_image_counts):

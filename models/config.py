@@ -1,8 +1,18 @@
 from dataclasses import dataclass, field
+from typing import Dict, Optional, Tuple
 
 
 @dataclass
 class VLMConfig:
+    """Configuration for Vision-Language Model architecture combining vision transformer, language model, and modality projection.
+    
+    :param vit_* : Vision transformer configuration parameters
+    :param lm_* : Language model configuration parameters 
+    :param mp_* : Modality projection configuration parameters
+    :param vlm_* : General VLM configuration parameters
+    :param max_img_size: Maximum image size for processing (pixels)
+    :param vlm_extra_tokens: Special tokens for image placeholders and grid positions
+    """
     vit_hidden_dim: int = 768
     vit_inter_dim: int = 4 * vit_hidden_dim
     vit_patch_size: int = 16
@@ -46,7 +56,7 @@ class VLMConfig:
     max_img_size: int = 1024  # nanoVLM main uses 2048 (too memory intensive)
     resize_to_max_side_len: bool = True
 
-    vlm_extra_tokens: dict[str, str] = field(
+    vlm_extra_tokens: Dict[str, str] = field(
         default_factory=lambda: {
             "image_token": "<|image|>",
             "global_image_token": "<|global_image|>",
@@ -123,10 +133,21 @@ class VLMConfig:
 
 @dataclass
 class TrainConfig:
+    """Configuration for VLM training hyperparameters and dataset settings.
+    
+    :param lr_* : Learning rates for different model components
+    :param batch_size: Training batch size per device
+    :param gradient_accumulation_steps: Number of gradient accumulation steps
+    :param max_training_steps: Maximum number of training steps
+    :param train_dataset_* : Dataset configuration parameters
+    :param wandb_* : Weights & Biases logging configuration
+    :param lmms_eval_* : LM evaluation harness configuration
+    :param max_saved_checkpoints: Maximum number of checkpoints to retain
+    """
     lr_mp: float = 0.00512
     lr_vision_backbone: float = 5e-5  # 0.0005 #
     lr_language_backbone: float = 5e-5  # 0
-    data_cutoff_idx: int = None
+    data_cutoff_idx: Optional[int] = None
     val_ratio: float = 0.005
     batch_size: int = 1
     gradient_accumulation_steps: int = 8
@@ -142,21 +163,21 @@ class TrainConfig:
     compile: bool = False
     resume_from_vlm_checkpoint: bool = False  # Indicate if the training should be resumed from a checkpoint of the whole VLM or you want to start from scratch
     train_dataset_path: str = "HuggingFaceM4/the_cauldron"
-    train_dataset_name: tuple[str, ...] = (
+    train_dataset_name: Tuple[str, ...] = (
         "all",
     )  # ('allava_laion', 'allava_vflan', 'cambrian(filtered)_processed', 'LLaVA_Instruct_150K', 'mmevol', 'sharegpt4o', 'sharegpt4v(coco)', 'sharegpt4v(knowledge)', 'sharegpt4v(llava)', 'sharegpt4v(sam)') # 'vision_flan(filtered)', 'lvis_instruct4v',
     relevance_min_rating: int = 1
     image_correspondence_min_rating: int = 1
     visual_dependency_min_rating: int = 1
     formatting_min_rating: int = 1
-    wandb_entity: str = None  # Indicate the entity to log to in wandb
+    wandb_entity: Optional[str] = None  # Indicate the entity to log to in wandb
     log_wandb: bool = True
     use_lmms_eval: bool = True  # Use lmms-eval for evaluation
     use_slurm_for_eval: bool = (
         False  # Submit eval jobs to SLURM (requires SLURM cluster)
     )
     lmms_eval_tasks: str = "mmstar,mmmu,ocrbench,textvqa,docvqa,scienceqa,mme,infovqa"  # Pass additional task as one string, seperated by commas without spaces (e.g. 'mmstar,mmmu,ocrbench')
-    lmms_eval_limit: float = None
+    lmms_eval_limit: Optional[float] = None
     lmms_eval_batch_size: int = 64
     max_saved_checkpoints: int = (
         3  # Maximum number of checkpoints to keep (oldest removed when exceeded)

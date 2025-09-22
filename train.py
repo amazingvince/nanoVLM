@@ -17,16 +17,13 @@ import numpy
 import torch
 import torch.distributed as dist
 import torch.optim as optim
-import wandb
-from datasets import (
-    concatenate_datasets,
-    get_dataset_config_names,
-    load_dataset,
-    load_from_disk,
-)
+from datasets import (concatenate_datasets, get_dataset_config_names,
+                      load_dataset, load_from_disk)
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler
 from tqdm import tqdm
+
+import wandb
 
 torch.manual_seed(0)
 if torch.cuda.is_available():
@@ -42,8 +39,8 @@ from data.collators import VQACollator  # noqa: E402
 from data.data_utils import synchronized_dataloader_step  # noqa: E402
 from data.datasets import VQADataset  # noqa: E402
 from data.processors import get_image_processor, get_tokenizer  # noqa: E402
-from models.vision_language_model import VisionLanguageModel  # noqa: E402
 from models.utils import configure_tf32, model_summary  # noqa: E402
+from models.vision_language_model import VisionLanguageModel  # noqa: E402
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"

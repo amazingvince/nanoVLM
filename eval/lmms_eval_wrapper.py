@@ -14,7 +14,8 @@ from lmms_eval.api.model import lmms
 from PIL import Image
 from tqdm import tqdm
 
-from data.processors import get_image_processor, get_image_string, get_tokenizer
+from data.processors import (get_image_processor, get_image_string,
+                             get_tokenizer)
 from models.vision_language_model import VisionLanguageModel
 
 

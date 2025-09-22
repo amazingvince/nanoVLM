@@ -1,11 +1,15 @@
+from typing import Any, Dict, Iterator
+
 import torch
 import torch.distributed as dist
+from torch.utils.data import DataLoader
 
 
-def _is_batch_valid(batch):
-    """
-    Check if a batch is valid for training/evaluation.
-    A valid batch must have input_ids and at least one image.
+def _is_batch_valid(batch: Dict[str, Any]) -> bool:
+    """Check if batch contains valid data for training/evaluation.
+    
+    :param batch: Batch dictionary from dataloader
+    :return: True if batch has valid input_ids and images
     """
     if not batch:
         return False
@@ -25,13 +29,14 @@ def _is_batch_valid(batch):
     return True
 
 
-def synchronized_dataloader_step(train_loader, is_dist):
-    """
-    Create a synchronized iterator that handles uneven data distribution in DDP.
-    All ranks will stop when the first rank runs out of data.
-    This happens because when packing a presharded dataset, a rank might have less groups than the others.
-    It also handles cases where a collator returns an empty/invalid batch on some ranks,
-    by ensuring all ranks skip the invalid batch and attempt to fetch a new one.
+def synchronized_dataloader_step(
+    train_loader: DataLoader, is_dist: bool
+) -> Iterator[Dict[str, Any]]:
+    """Create synchronized iterator for distributed training with uneven data.
+    
+    :param train_loader: DataLoader to iterate over
+    :param is_dist: Whether running in distributed mode
+    :return: Iterator yielding valid batches synchronized across ranks
     """
     if not is_dist:
         # For single GPU, we don't need synchronization, just filter invalid batches.

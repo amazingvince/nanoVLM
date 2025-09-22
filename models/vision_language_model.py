@@ -2,7 +2,7 @@ import json
 import tempfile
 from dataclasses import asdict
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -18,7 +18,12 @@ from models.vision_transformer import ViT
 
 
 class VisionLanguageModel(nn.Module):
-    def __init__(self, cfg: VLMConfig, load_backbone=True):
+    """Vision-Language Model combining vision encoder, language decoder, and modality projector.
+    
+    :param cfg: VLMConfig containing model configuration
+    :param load_backbone: Whether to load pretrained backbone weights
+    """
+    def __init__(self, cfg: VLMConfig, load_backbone: bool = True):
         super().__init__()
         self.cfg = cfg
         if load_backbone:
@@ -34,11 +39,15 @@ class VisionLanguageModel(nn.Module):
             cfg.lm_tokenizer, cfg.vlm_extra_tokens, cfg.lm_chat_template
         )
 
-    def _replace_img_tokens_with_embd(self, input_ids, token_embd, image_embd):
-        """
-        Replace every image-token placeholder in `input_ids` with the corresponding slice
-        from `image_embd`. Supports an arbitrary number of image-token placeholders per sample.
-        The first example in the batch might have 2 images and the second none.
+    def _replace_img_tokens_with_embd(
+        self, input_ids: torch.Tensor, token_embd: torch.Tensor, image_embd: torch.Tensor
+    ) -> torch.Tensor:
+        """Replace image-token placeholders with actual image embeddings.
+        
+        :param input_ids: Token IDs [batch_size, seq_len]
+        :param token_embd: Token embeddings [batch_size, seq_len, hidden_dim]
+        :param image_embd: Image embeddings [num_images, num_patches, hidden_dim]
+        :return: Updated token embeddings with image embeddings inserted
         """
         # Clone the original embeddings to avoid in-place issues
         updated_token_embd = token_embd.clone()
@@ -51,7 +60,15 @@ class VisionLanguageModel(nn.Module):
 
         return updated_token_embd
 
-    def _process_images(self, images, device):
+    def _process_images(
+        self, images: Union[torch.Tensor, List[torch.Tensor]], device: torch.device
+    ) -> Optional[torch.Tensor]:
+        """Process and concatenate images into a single tensor.
+        
+        :param images: Input images as tensor or list of tensors
+        :param device: Target device for tensor
+        :return: Concatenated image tensor or None if no images
+        """
         if isinstance(images, list):
             if images and isinstance(images[0], list):
                 images = [img for sublist in images for img in sublist]
@@ -62,7 +79,21 @@ class VisionLanguageModel(nn.Module):
                 return torch.cat(images, dim=0).to(device)
         return images  # Already a tensor
 
-    def forward(self, input_ids, images, attention_mask=None, targets=None):
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        images: Union[torch.Tensor, List[torch.Tensor]],
+        attention_mask: Optional[torch.Tensor] = None,
+        targets: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        """Forward pass through the vision-language model.
+        
+        :param input_ids: Input token IDs [batch_size, seq_len]
+        :param images: Images as tensor or list [batch_size, 3, H, W]
+        :param attention_mask: Attention mask [batch_size, seq_len]
+        :param targets: Target token IDs for computing loss [batch_size, seq_len]
+        :return: Tuple of (logits [batch_size, seq_len, vocab_size], loss)
+        """
         images_tensor = self._process_images(images, input_ids.device)
         token_embd = self.decoder.token_embedding(input_ids)  # [B, T_sequence, D_lm]
 
@@ -93,15 +124,27 @@ class VisionLanguageModel(nn.Module):
     @torch.inference_mode()
     def generate(
         self,
-        input_ids,
-        images,
-        attention_mask=None,
-        max_new_tokens=5,
-        top_k=50,
-        top_p=0.9,
-        temperature=0.5,
-        greedy=False,
-    ):
+        input_ids: torch.Tensor,
+        images: Union[torch.Tensor, List[torch.Tensor]],
+        attention_mask: Optional[torch.Tensor] = None,
+        max_new_tokens: int = 5,
+        top_k: int = 50,
+        top_p: float = 0.9,
+        temperature: float = 0.5,
+        greedy: bool = False,
+    ) -> torch.Tensor:
+        """Generate text autoregressively given image and text inputs.
+        
+        :param input_ids: Input token IDs [batch_size, seq_len]
+        :param images: Images as tensor or list
+        :param attention_mask: Attention mask
+        :param max_new_tokens: Number of tokens to generate
+        :param top_k: Top-k sampling parameter
+        :param top_p: Top-p (nucleus) sampling parameter
+        :param temperature: Temperature for sampling
+        :param greedy: Whether to use greedy decoding
+        :return: Generated token IDs [batch_size, num_generated]
+        """
         images_tensor = self._process_images(images, input_ids.device)
         token_embd = self.decoder.token_embedding(input_ids)  # [B, T_prompt_text, D_lm]
 
@@ -291,11 +334,9 @@ class VisionLanguageModel(nn.Module):
         return model
 
     def save_pretrained(self, save_directory: str) -> None:
-        """
-        Save the model and configuration to a directory.
-
-        Args:
-            save_directory (str): The directory to save the model and config.
+        """Save model weights and configuration to directory.
+        
+        :param save_directory: Directory path to save model
         """
         # Create directory if it doesn't exist
         save_path = Path(save_directory)
@@ -308,12 +349,12 @@ class VisionLanguageModel(nn.Module):
         # Save weights as safetensors
         save_model(self, str(save_path / "model.safetensors"))
 
-    def push_to_hub(self, repo_id: str, private: bool = False) -> None:
-        """
-        Push the model and configuration to the Hugging Face Hub.
-
-        Args:
-            repo_id (str): The repo ID on the Hugging Face Hub.
+    def push_to_hub(self, repo_id: str, private: bool = False) -> str:
+        """Push model to Hugging Face Hub.
+        
+        :param repo_id: Repository ID on HuggingFace Hub
+        :param private: Whether to create private repository
+        :return: URL of the created/updated repository
         """
         from huggingface_hub import create_repo, upload_folder
 
