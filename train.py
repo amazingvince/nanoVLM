@@ -1193,12 +1193,12 @@ def get_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--vit_img_size",
         type=int,
-        help="Vision encoder patch processing size (default: 512 for both SigLIP and DINOv3). DINOv3's 2D RoPE enables training at higher resolutions than its 224×224 pretraining.",
+        help="Size of EACH patch sent to vision encoder (default: 512). This is the resolution the vision encoder processes. DINOv3's 2D RoPE enables training at higher resolutions than its 224×224 pretraining.",
     )
     parser.add_argument(
         "--max_img_size",
         type=int,
-        help="Maximum image size before splitting into patches (default: 1024)",
+        help="Maximum size of WHOLE image before splitting into vit_img_size patches (default: 1024). Images larger than this are resized down, then split into patches of vit_img_size.",
     )
 
     return parser

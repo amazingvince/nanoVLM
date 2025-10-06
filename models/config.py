@@ -11,7 +11,8 @@ class VLMConfig:
     :param lm_* : Language model configuration parameters
     :param mp_* : Modality projection configuration parameters
     :param vlm_* : General VLM configuration parameters
-    :param max_img_size: Maximum image size for processing (pixels)
+    :param max_img_size: Maximum size of WHOLE image before splitting into patches (pixels)
+    :param vit_img_size: Size of EACH patch sent to vision encoder (pixels)
     :param vlm_extra_tokens: Special tokens for image placeholders and grid positions
     """
 
@@ -19,7 +20,7 @@ class VLMConfig:
     vit_hidden_dim: int = 768
     vit_inter_dim: int = 4 * vit_hidden_dim
     vit_patch_size: int = 16
-    vit_img_size: int = 512
+    vit_img_size: int = 512  # Size of EACH patch sent to encoder
     vit_n_heads: int = 12
     vit_dropout: float = 0.0
     vit_n_blocks: int = 12
@@ -75,7 +76,7 @@ class VLMConfig:
     mp_pixel_shuffle_factor: int = 4
     mp_image_token_length: int = 64
 
-    max_img_size: int = 1024  # nanoVLM main uses 2048 (too memory intensive)
+    max_img_size: int = 1024  # Max WHOLE image size before splitting into vit_img_size patches
     resize_to_max_side_len: bool = True
 
     vlm_extra_tokens: Dict[str, str] = field(
