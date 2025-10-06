@@ -212,10 +212,12 @@ class DINOv3Encoder(VisionEncoderBase):
             "patch_size": self._patch_size,
             "mean": [0.485, 0.456, 0.406],  # ImageNet normalization
             "std": [0.229, 0.224, 0.225],
-            "interpolation": "bicubic",
+            "interpolation": "bilinear",  # DINOv3 uses BILINEAR, not BICUBIC
             "rescale_factor": 1.0 / 255.0,  # DINOv3 specific
             "do_rescale": True,
             "do_normalize": True,
+            # DINOv3 preprocessing order: rescale → resize → normalize
+            "preprocessing_order": ["rescale", "resize", "normalize"],
         }
 
     @classmethod
