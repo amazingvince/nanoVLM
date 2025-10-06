@@ -36,20 +36,45 @@ class DINOv3Encoder(VisionEncoderBase):
         # Import here to avoid dependency if not using DINOv3
         from transformers import AutoModel
 
-        # Create DINOv3 model
+        # Prepare config overrides for DINOv3-specific features
+        config_overrides = {
+            "trust_remote_code": True,  # Required for DINOv3
+        }
+
+        # Pass DINOv3-specific parameters if they are set
+        if hasattr(cfg, "vit_layerscale_value") and cfg.vit_layerscale_value is not None:
+            config_overrides["layerscale_value"] = cfg.vit_layerscale_value
+        if hasattr(cfg, "vit_drop_path_rate") and cfg.vit_drop_path_rate is not None:
+            config_overrides["drop_path_rate"] = cfg.vit_drop_path_rate
+        if hasattr(cfg, "vit_rope_theta") and cfg.vit_rope_theta is not None:
+            config_overrides["rope_theta"] = cfg.vit_rope_theta
+        if hasattr(cfg, "vit_pos_embed_shift") and cfg.vit_pos_embed_shift is not None:
+            config_overrides["pos_embed_shift"] = cfg.vit_pos_embed_shift
+        if hasattr(cfg, "vit_pos_embed_jitter") and cfg.vit_pos_embed_jitter is not None:
+            config_overrides["pos_embed_jitter"] = cfg.vit_pos_embed_jitter
+        if hasattr(cfg, "vit_pos_embed_rescale") and cfg.vit_pos_embed_rescale is not None:
+            config_overrides["pos_embed_rescale"] = cfg.vit_pos_embed_rescale
+
+        # Create DINOv3 model with config overrides
         self.model = AutoModel.from_pretrained(
             cfg.vit_model_type,
-            trust_remote_code=True,  # Required for DINOv3
+            **config_overrides
         )
 
         # Auto-detect register tokens from model config
         model_config = self.model.config
         self._num_register_tokens = getattr(model_config, "num_register_tokens", 4)
 
-        # Validate against user-provided value if present
-        user_register_tokens = getattr(cfg, "vit_num_register_tokens", None)
-        if user_register_tokens is not None and user_register_tokens != self._num_register_tokens:
-            print(f"Warning: Config specifies {user_register_tokens} register tokens but model has {self._num_register_tokens}. Using model value.")
+        # Validate that our config overrides were applied
+        if hasattr(cfg, "vit_layerscale_value") and cfg.vit_layerscale_value is not None:
+            actual_value = getattr(model_config, "layerscale_value", None)
+            if actual_value != cfg.vit_layerscale_value:
+                print(f"Warning: LayerScale override may not have been applied. Expected {cfg.vit_layerscale_value}, got {actual_value}")
+
+        if hasattr(cfg, "vit_drop_path_rate") and cfg.vit_drop_path_rate is not None:
+            actual_value = getattr(model_config, "drop_path_rate", None)
+            if actual_value != cfg.vit_drop_path_rate:
+                print(f"Warning: DropPath override may not have been applied. Expected {cfg.vit_drop_path_rate}, got {actual_value}")
 
         # Store configuration
         self.hidden_dim = cfg.vit_hidden_dim
@@ -57,12 +82,26 @@ class DINOv3Encoder(VisionEncoderBase):
         self._image_size = cfg.vit_img_size
         self._has_cls = cfg.vit_cls_flag
 
-        # DINOv3-specific parameters
-        self._rope_theta = getattr(cfg, "vit_rope_theta", 100.0)
+        # Store DINOv3-specific parameters from model config
+        self._rope_theta = getattr(model_config, "rope_theta", 100.0)
         self._max_resolution = getattr(cfg, "vit_max_resolution", 1024)
-        self._training_resolution = getattr(model_config, "image_size", 224)  # DINOv3 training resolution
+        self._training_resolution = getattr(model_config, "image_size", 224)
+        self._layerscale_value = getattr(model_config, "layerscale_value", 1.0)
+        self._drop_path_rate = getattr(model_config, "drop_path_rate", 0.0)
+        self._pos_embed_shift = getattr(model_config, "pos_embed_shift", None)
+        self._pos_embed_jitter = getattr(model_config, "pos_embed_jitter", None)
+        self._pos_embed_rescale = getattr(model_config, "pos_embed_rescale", 2.0)
 
-        print(f"DINOv3 initialized: register_tokens={self._num_register_tokens}, training_res={self._training_resolution}, max_res={self._max_resolution}")
+        # Print configuration summary
+        print(f"DINOv3 initialized with:")
+        print(f"  Model: {cfg.vit_model_type}")
+        print(f"  Register tokens: {self._num_register_tokens}")
+        print(f"  Training resolution: {self._training_resolution}")
+        print(f"  Max resolution: {self._max_resolution}")
+        print(f"  LayerScale: {self._layerscale_value}")
+        print(f"  DropPath: {self._drop_path_rate}")
+        if self._pos_embed_shift or self._pos_embed_jitter or self._pos_embed_rescale != 2.0:
+            print(f"  Position augmentation: shift={self._pos_embed_shift}, jitter={self._pos_embed_jitter}, rescale={self._pos_embed_rescale}")
 
     def forward(self, images: torch.Tensor) -> VisionEncoderOutput:
         """Encode images using DINOv3.
