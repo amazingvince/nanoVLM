@@ -723,7 +723,6 @@ class LanguageModel(nn.Module):
             )
 
         # Special handling for token embeddings with extended vocabulary
-        has_extended_embeddings = False
         loaded_keys = set()
 
         for safetensors_file in safetensors_files:
@@ -742,7 +741,6 @@ class LanguageModel(nn.Module):
                             hf_key == "model.embed_tokens.weight"
                             and tensor.shape[0] != sd[our_key].shape[0]
                         ):
-                            has_extended_embeddings = True
                             print(
                                 f"Extending token embeddings from {tensor.shape} to {sd[our_key].shape}"
                             )
@@ -759,9 +757,19 @@ class LanguageModel(nn.Module):
                             print(
                                 f"Initialized {sd[our_key].shape[0] - tensor.shape[0]} new token embeddings"
                             )
-                            sd["head.weight"].copy_(
-                                sd[our_key]
-                            )  # Update the head weights as well
+
+                            # Handle LM head extension (tied weights in most models)
+                            # SmolLM2 and similar models tie lm_head to embeddings
+                            if "head.weight" in sd:
+                                sd["head.weight"][: tensor.shape[0]].copy_(tensor)
+                                init.normal_(
+                                    sd["head.weight"][tensor.shape[0] :],
+                                    mean=0.0,
+                                    std=std,
+                                )
+                                print(
+                                    f"Extended LM head from {tensor.shape} to {sd['head.weight'].shape}"
+                                )
                         elif tensor.shape == sd[our_key].shape:
                             sd[our_key].copy_(tensor)
                         else:
@@ -780,38 +788,6 @@ class LanguageModel(nn.Module):
 
         # Load the state dict
         model.load_state_dict(sd)
-
-        # Handle output projection / language modeling head
-        if has_extended_embeddings and hasattr(model, "head") and "head.weight" in sd:
-            # If we have a separate output projection layer and extended the vocab
-            # we should handle it similarly to the input embeddings
-            lm_head_loaded = False
-            for safetensors_file in safetensors_files:
-                with safetensors.safe_open(
-                    filename=safetensors_file, framework="pt", device="cpu"
-                ) as f:
-                    if "lm_head.weight" in f.keys():
-                        lm_head = f.get_tensor("lm_head.weight")
-                        if lm_head.shape[0] != sd["head.weight"].shape[0]:
-                            print(
-                                f"Extending LM head from {lm_head.shape} to {sd['head.weight'].shape}"
-                            )
-                            # Copy existing weights
-                            sd["head.weight"][: lm_head.shape[0]].copy_(lm_head)
-                            # Initialize new weights
-                            std = 0.02
-                            init.normal_(
-                                sd["head.weight"][lm_head.shape[0] :], mean=0.0, std=std
-                            )
-                            # Load updated weights
-                            model.load_state_dict(sd)
-                            lm_head_loaded = True
-                        break
-
-            if not lm_head_loaded:
-                print(
-                    "Warning: Could not find lm_head.weight in any safetensor file, using random initialization"
-                )
 
         # Handle weight tying (if needed)
         if (
