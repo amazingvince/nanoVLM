@@ -34,7 +34,7 @@ class DINOv3Encoder(VisionEncoderBase):
         super().__init__(cfg)
 
         # Import here to avoid dependency if not using DINOv3
-        from transformers import AutoModel
+        from transformers import AutoModel, AutoImageProcessor
 
         # Prepare config overrides for DINOv3-specific features
         config_overrides = {
@@ -59,6 +59,12 @@ class DINOv3Encoder(VisionEncoderBase):
         self.model = AutoModel.from_pretrained(
             cfg.vit_model_type,
             **config_overrides
+        )
+
+        # Create the official processor for proper preprocessing
+        self.processor = AutoImageProcessor.from_pretrained(
+            cfg.vit_model_type,
+            trust_remote_code=True
         )
 
         # Auto-detect register tokens from model config
@@ -106,6 +112,20 @@ class DINOv3Encoder(VisionEncoderBase):
         print(f"  DropPath: {self._drop_path_rate}")
         if self._pos_embed_shift or self._pos_embed_jitter or self._pos_embed_rescale != 2.0:
             print(f"  Position augmentation: shift={self._pos_embed_shift}, jitter={self._pos_embed_jitter}, rescale={self._pos_embed_rescale}")
+
+    def preprocess_with_processor(self, images):
+        """Preprocess images using the official DINOv3 processor.
+
+        :param images: PIL images or tensors
+        :return: Preprocessed tensor ready for model
+        """
+        # If images are already tensors, we can use them directly
+        # Otherwise, use the processor
+        if not isinstance(images, torch.Tensor):
+            # Use the official processor for PIL images
+            inputs = self.processor(images=images, return_tensors="pt")
+            return inputs["pixel_values"]
+        return images
 
     def forward(self, images: torch.Tensor) -> VisionEncoderOutput:
         """Encode images using DINOv3.
@@ -207,22 +227,25 @@ class DINOv3Encoder(VisionEncoderBase):
         return self._num_register_tokens
 
     def get_preprocessing_config(self) -> Dict:
-        """Get preprocessing configuration.
+        """Get preprocessing configuration from the official processor.
 
         :return: Preprocessing parameters for DINOv3
         """
-        return {
+        # Use the official processor's configuration
+        proc_config = {
             "image_size": self._image_size,
             "patch_size": self._patch_size,
-            "mean": [0.485, 0.456, 0.406],  # ImageNet normalization
-            "std": [0.229, 0.224, 0.225],
-            "interpolation": "bilinear",  # DINOv3 uses BILINEAR, not BICUBIC
-            "rescale_factor": 1.0 / 255.0,  # DINOv3 specific
-            "do_rescale": True,
-            "do_normalize": True,
+            "mean": getattr(self.processor, "image_mean", [0.485, 0.456, 0.406]),
+            "std": getattr(self.processor, "image_std", [0.229, 0.224, 0.225]),
+            "interpolation": "bilinear",  # DINOv3 uses BILINEAR
+            "rescale_factor": getattr(self.processor, "rescale_factor", 1.0 / 255.0),
+            "do_rescale": getattr(self.processor, "do_rescale", True),
+            "do_normalize": getattr(self.processor, "do_normalize", True),
             # DINOv3 preprocessing order: rescale → resize → normalize
             "preprocessing_order": ["rescale", "resize", "normalize"],
+            "processor": self.processor,  # Include processor for direct use
         }
+        return proc_config
 
     @classmethod
     def from_pretrained(cls, cfg) -> 'DINOv3Encoder':

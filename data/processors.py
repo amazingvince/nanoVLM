@@ -41,6 +41,7 @@ def get_image_processor(
     splitted_image_size: int,
     resize_to_max_side_len: bool = False,
     encoder_type: str = "siglip",
+    processor=None,  # Optional AutoImageProcessor for DINOv3
 ) -> transforms.Compose:
     """Create image preprocessing pipeline with dynamic resizing and splitting.
 
@@ -48,27 +49,33 @@ def get_image_processor(
     :param splitted_image_size: Size of split image patches
     :param resize_to_max_side_len: Whether to resize to max side length
     :param encoder_type: Type of vision encoder for preprocessing
+    :param processor: Optional AutoImageProcessor for DINOv3 to ensure accurate preprocessing
     :return: Composed image transformation pipeline
     """
     transform_list = []
 
     # DINOv3 requires specific preprocessing order and BILINEAR interpolation
     if encoder_type.startswith("dinov3"):
-        # For DINOv3: rescale → resize → normalize
-        # Use BILINEAR interpolation as per DINOv3 reference implementation
+        # Use processor's config if available for accurate preprocessing
+        if processor is not None:
+            mean = getattr(processor, "image_mean", [0.485, 0.456, 0.406])
+            std = getattr(processor, "image_std", [0.229, 0.224, 0.225])
+        else:
+            mean = [0.485, 0.456, 0.406]
+            std = [0.229, 0.224, 0.225]
+
+        # For DINOv3: rescale → resize → normalize (order matters!)
+        # Use BILINEAR interpolation as per DINOv3 reference
         transform_list.extend([
             DynamicResize(
                 splitted_image_size,
                 max_img_size,
                 resize_to_max_side_len,
-                interpolation=InterpolationMode.BILINEAR  # DINOv3 uses BILINEAR, not BICUBIC
+                interpolation=InterpolationMode.BILINEAR  # DINOv3 uses BILINEAR
             ),
             transforms.ToTensor(),  # Implicitly rescales [0,255] → [0,1]
-            # ImageNet normalization for DINOv3
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            ),
+            # ImageNet normalization for DINOv3 using processor's values
+            transforms.Normalize(mean=mean, std=std),
             GlobalAndSplitImages(splitted_image_size),
         ])
     else:
