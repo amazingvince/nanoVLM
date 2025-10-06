@@ -11,13 +11,14 @@ from data.processors import get_image_string
 
 class BaseDataset(Dataset):
     """Base dataset class for vision-language tasks with quality filtering.
-    
+
     :param dataset: Source dataset to wrap
-    :param tokenizer: Tokenizer for text processing  
+    :param tokenizer: Tokenizer for text processing
     :param image_processor: Image preprocessing pipeline
     :param mp_image_token_length: Number of tokens per image patch
     :param *_min_rating: Minimum quality ratings for filtering samples
     """
+
     def __init__(
         self,
         dataset: Any,
@@ -44,7 +45,7 @@ class BaseDataset(Dataset):
 
     def _get_prefix_len(self) -> int:
         """Calculate prefix length for assistant responses in chat template.
-        
+
         :return: Number of tokens in assistant response prefix
         """
         random_string_5_letters = "xzyvd"
@@ -64,7 +65,7 @@ class BaseDataset(Dataset):
         self, item: Dict[str, Any], splitted_image_counts: List[Tuple[int, int]]
     ) -> List[Dict[str, str]]:
         """Extract and filter messages from dataset item based on quality ratings.
-        
+
         :param item: Dataset item containing texts and ratings
         :param splitted_image_counts: List of (height, width) split counts
         :return: List of message dictionaries with role and content
@@ -127,7 +128,7 @@ class BaseDataset(Dataset):
         self, images: List[Image.Image]
     ) -> Tuple[List[torch.Tensor], List[Tuple[int, int]]]:
         """Process and split images for model input.
-        
+
         :param images: List of PIL images
         :return: Tuple of (processed image tensors, split counts)
         """
@@ -155,7 +156,7 @@ class BaseDataset(Dataset):
         self, messages: List[Dict[str, str]]
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Prepare tokenized inputs and create mask for loss computation.
-        
+
         :param messages: List of conversation messages
         :return: Tuple of (input_ids, loss_mask, attention_mask)
         """
@@ -191,10 +192,10 @@ class BaseDataset(Dataset):
 
 class VQADataset(BaseDataset):  # Visual Question Answering Dataset
     """Dataset for visual question answering tasks with image-text pairs."""
-    
+
     def iter_for_worker(self, worker_id: int, num_workers: int) -> Any:
         """Iterate over dataset subset for distributed workers.
-        
+
         :param worker_id: ID of current worker
         :param num_workers: Total number of workers
         :return: Generator of processed data items
@@ -205,7 +206,7 @@ class VQADataset(BaseDataset):  # Visual Question Answering Dataset
 
     def __getitem__(self, idx: int) -> Optional[Dict[str, torch.Tensor]]:
         """Get processed item from dataset.
-        
+
         :param idx: Index of item to retrieve
         :return: Dictionary with images, input_ids, attention_mask, labels
         """
@@ -214,7 +215,7 @@ class VQADataset(BaseDataset):  # Visual Question Answering Dataset
 
     def _process_data(self, item: Dict[str, Any]) -> Optional[Dict[str, torch.Tensor]]:
         """Process single dataset item into model inputs.
-        
+
         :param item: Raw dataset item
         :return: Processed tensors ready for model input
         """
@@ -246,11 +247,9 @@ class VQADataset(BaseDataset):  # Visual Question Answering Dataset
             "labels": labels,
         }
 
-    def _get_labels(
-        self, input_ids: torch.Tensor, mask: torch.Tensor
-    ) -> torch.Tensor:
+    def _get_labels(self, input_ids: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """Create labels for language modeling loss computation.
-        
+
         :param input_ids: Token IDs [seq_len]
         :param mask: Boolean mask for loss computation [seq_len]
         :return: Labels tensor with -100 for ignored tokens [seq_len]

@@ -9,7 +9,7 @@ from torchvision.transforms.functional import InterpolationMode, resize
 
 class DynamicResize(torch.nn.Module):
     """Dynamic image resizing to ensure dimensions are divisible by patch size.
-    
+
     :param patch_size: Size of patches for vision transformer
     :param max_side_len: Maximum allowed side length
     :param resize_to_max_side_len: Whether to always resize to max_side_len
@@ -33,7 +33,7 @@ class DynamicResize(torch.nn.Module):
     # ------------------------------------------------------------
     def _get_new_hw(self, h: int, w: int) -> Tuple[int, int]:
         """Compute target dimensions divisible by patch size.
-        
+
         :param h: Original height
         :param w: Original width
         :return: Tuple of (new_height, new_width)
@@ -61,7 +61,7 @@ class DynamicResize(torch.nn.Module):
         self, img: Union[Image.Image, torch.Tensor]
     ) -> Union[Image.Image, torch.Tensor]:
         """Resize input image maintaining aspect ratio.
-        
+
         :param img: Input PIL Image or tensor
         :return: Resized image in same format as input
         """
@@ -93,7 +93,7 @@ class DynamicResize(torch.nn.Module):
 
 class SplitImage(torch.nn.Module):
     """Split image tensor into square patches for vision transformer.
-    
+
     :param patch_size: Size of each square patch
     """
 
@@ -103,7 +103,7 @@ class SplitImage(torch.nn.Module):
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, Tuple[int, int]]:
         """Split input tensor into patches.
-        
+
         :param x: Input tensor [batch, channels, height, width]
         :return: Tuple of (patches [B*n_h*n_w, C, p, p], grid (n_h, n_w))
         """
@@ -125,9 +125,10 @@ class SplitImage(torch.nn.Module):
 
 class GlobalAndSplitImages(torch.nn.Module):
     """Split images into patches and add global context patch.
-    
+
     :param patch_size: Size of each square patch
     """
+
     def __init__(self, patch_size: int):
         super().__init__()
         self.p = patch_size
@@ -135,7 +136,7 @@ class GlobalAndSplitImages(torch.nn.Module):
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, Tuple[int, int]]:
         """Split image and prepend global context patch.
-        
+
         :param x: Input tensor [batch, channels, height, width]
         :return: Tuple of (patches with global context, grid dimensions)
         """

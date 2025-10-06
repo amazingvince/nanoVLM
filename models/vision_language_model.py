@@ -15,7 +15,6 @@ from models.language_model import LanguageModel
 from models.modality_projector import ModalityProjector
 from models.utils import top_k_top_p_filtering
 from models.vision_encoder_registry import create_vision_encoder
-from models.vision_encoder_base import VisionEncoderOutput
 
 # Import encoders to register them
 import models.encoders  # noqa: F401
@@ -23,10 +22,11 @@ import models.encoders  # noqa: F401
 
 class VisionLanguageModel(nn.Module):
     """Vision-Language Model combining vision encoder, language decoder, and modality projector.
-    
+
     :param cfg: VLMConfig containing model configuration
     :param load_backbone: Whether to load pretrained backbone weights
     """
+
     def __init__(self, cfg: VLMConfig, load_backbone: bool = True):
         super().__init__()
         self.cfg = cfg
@@ -49,10 +49,13 @@ class VisionLanguageModel(nn.Module):
         )
 
     def _replace_img_tokens_with_embd(
-        self, input_ids: torch.Tensor, token_embd: torch.Tensor, image_embd: torch.Tensor
+        self,
+        input_ids: torch.Tensor,
+        token_embd: torch.Tensor,
+        image_embd: torch.Tensor,
     ) -> torch.Tensor:
         """Replace image-token placeholders with actual image embeddings.
-        
+
         :param input_ids: Token IDs [batch_size, seq_len]
         :param token_embd: Token embeddings [batch_size, seq_len, hidden_dim]
         :param image_embd: Image embeddings [num_images, num_patches, hidden_dim]
@@ -73,7 +76,7 @@ class VisionLanguageModel(nn.Module):
         self, images: Union[torch.Tensor, List[torch.Tensor]], device: torch.device
     ) -> Optional[torch.Tensor]:
         """Process and concatenate images into a single tensor.
-        
+
         :param images: Input images as tensor or list of tensors
         :param device: Target device for tensor
         :return: Concatenated image tensor or None if no images
@@ -96,7 +99,7 @@ class VisionLanguageModel(nn.Module):
         targets: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """Forward pass through the vision-language model.
-        
+
         :param input_ids: Input token IDs [batch_size, seq_len]
         :param images: Images as tensor or list [batch_size, 3, H, W]
         :param attention_mask: Attention mask [batch_size, seq_len]
@@ -146,7 +149,7 @@ class VisionLanguageModel(nn.Module):
         greedy: bool = False,
     ) -> torch.Tensor:
         """Generate text autoregressively given image and text inputs.
-        
+
         :param input_ids: Input token IDs [batch_size, seq_len]
         :param images: Images as tensor or list
         :param attention_mask: Attention mask
@@ -350,7 +353,7 @@ class VisionLanguageModel(nn.Module):
 
     def save_pretrained(self, save_directory: str) -> None:
         """Save model weights and configuration to directory.
-        
+
         :param save_directory: Directory path to save model
         """
         # Create directory if it doesn't exist
@@ -366,7 +369,7 @@ class VisionLanguageModel(nn.Module):
 
     def push_to_hub(self, repo_id: str, private: bool = False) -> str:
         """Push model to Hugging Face Hub.
-        
+
         :param repo_id: Repository ID on HuggingFace Hub
         :param private: Whether to create private repository
         :return: URL of the created/updated repository

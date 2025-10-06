@@ -5,7 +5,7 @@ providing a factory pattern for creating encoder instances.
 """
 
 from dataclasses import dataclass
-from typing import Dict, Optional, Type
+from typing import Dict, Type
 
 from models.vision_encoder_base import VisionEncoderBase
 

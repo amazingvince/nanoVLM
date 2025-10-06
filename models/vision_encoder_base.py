@@ -4,7 +4,7 @@ This module provides the interface that all vision encoders must implement,
 enabling easy swapping between different vision backbones (SigLIP, DINOv3, CLIP, etc.)
 """
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
@@ -21,6 +21,7 @@ class VisionEncoderOutput:
     :param num_patches: Number of patch tokens (excluding CLS/register tokens)
     :param grid_shape: Optional (height, width) of patch grid
     """
+
     features: torch.Tensor
     pooled_output: Optional[torch.Tensor] = None
     num_patches: Optional[int] = None
@@ -114,7 +115,7 @@ class VisionEncoderBase(nn.Module):
 
     @classmethod
     @abstractmethod
-    def from_pretrained(cls, cfg) -> 'VisionEncoderBase':
+    def from_pretrained(cls, cfg) -> "VisionEncoderBase":
         """Load pretrained encoder weights.
 
         :param cfg: VLMConfig with encoder specification

@@ -8,6 +8,7 @@ class ModalityProjector(nn.Module):
 
     :param cfg: VLMConfig containing modality projection parameters
     """
+
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
@@ -25,7 +26,7 @@ class ModalityProjector(nn.Module):
 
     def _init_weights(self, module: nn.Module) -> None:
         """Initialize linear layer weights with normal distribution.
-        
+
         :param module: Module to initialize
         """
         if isinstance(module, nn.Linear):
@@ -36,7 +37,7 @@ class ModalityProjector(nn.Module):
     # https://github.com/huggingface/smollm/blob/main/vision/m4/models/vllama3/modeling_vllama3.py#L1281
     def pixel_shuffle(self, x: torch.Tensor) -> torch.Tensor:
         """Rearrange spatial patches to reduce sequence length while increasing feature dimension.
-        
+
         :param x: Input tensor [batch_size, seq_len, embed_dim] where seq_len must be perfect square
         :return: Shuffled tensor [batch_size, seq_len/(scale_factor^2), embed_dim*(scale_factor^2)]
         """
@@ -64,7 +65,7 @@ class ModalityProjector(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Project vision features to language embedding space.
-        
+
         :param x: Vision features [batch_size, num_patches, vit_hidden_dim]
         :return: Language embeddings [batch_size, reduced_patches, lm_hidden_dim]
         """

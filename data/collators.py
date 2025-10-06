@@ -6,15 +6,16 @@ from transformers import PreTrainedTokenizer
 
 class BaseCollator(object):
     """Base collator for batching and padding sequences.
-    
+
     :param tokenizer: Tokenizer for padding operations
     """
+
     def __init__(self, tokenizer: PreTrainedTokenizer):
         self.tokenizer = tokenizer
 
     def _pad_batch(self, batch: Dict[str, List], max_length: int) -> None:
         """Pad batch items to uniform length.
-        
+
         :param batch: Dictionary containing input_ids, labels, attention_mask
         :param max_length: Target length for padding
         """
@@ -41,7 +42,7 @@ class BaseCollator(object):
         self, batch: List[Dict[str, Any]], max_length: Optional[int] = None
     ) -> Dict[str, torch.Tensor]:
         """Prepare batch by filtering, padding, and stacking tensors.
-        
+
         :param batch: List of sample dictionaries
         :param max_length: Optional maximum sequence length
         :return: Dictionary with stacked tensors ready for model input
@@ -85,7 +86,7 @@ class BaseCollator(object):
         self, batch: Dict[str, List], max_length: int
     ) -> Dict[str, List]:
         """Filter out samples exceeding maximum length.
-        
+
         :param batch: Batch dictionary with lists of tensors
         :param max_length: Maximum allowed sequence length
         :return: Filtered batch dictionary
@@ -113,10 +114,11 @@ class BaseCollator(object):
 
 class VQACollator(BaseCollator):  # Visual Question Answering Collator
     """Collator for visual question answering tasks with special label padding.
-    
+
     :param tokenizer: Tokenizer for padding operations
     :param max_length: Maximum sequence length for padding
     """
+
     def __init__(self, tokenizer: PreTrainedTokenizer, max_length: int):
         self.max_length = max_length
         super().__init__(tokenizer)
@@ -125,7 +127,7 @@ class VQACollator(BaseCollator):  # Visual Question Answering Collator
         self, batch: Dict[str, List], max_length: int
     ) -> None:  # Reimplementing to use -100 as the pad value for labels, so that it's ignored by the loss
         """Pad batch with -100 for labels to ignore in loss computation.
-        
+
         :param batch: Batch dictionary to pad
         :param max_length: Target padding length
         """
@@ -148,7 +150,7 @@ class VQACollator(BaseCollator):  # Visual Question Answering Collator
 
     def __call__(self, batch: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
         """Process batch for DataLoader.
-        
+
         :param batch: List of sample dictionaries
         :return: Collated batch dictionary
         """

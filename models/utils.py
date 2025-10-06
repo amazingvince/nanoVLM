@@ -12,7 +12,7 @@ def check_multiple_choice_with_regex(
     model_outputs: List[str], correct_answers: List[str]
 ) -> List[bool]:
     """Check if model outputs match correct multiple choice answers using regex.
-    
+
     :param model_outputs: List of model-generated text outputs
     :param correct_answers: List of correct answer letters (A, B, C, etc.)
     :return: List of booleans indicating whether each answer is correct
@@ -45,7 +45,7 @@ def top_k_top_p_filtering(
     filter_value: float = -float("Inf"),
 ) -> torch.Tensor:
     """Apply top-k and nucleus (top-p) filtering to logits for sampling.
-    
+
     :param logits: Logits tensor [batch_size, vocab_size]
     :param top_k: Keep only top k tokens with highest probability
     :param top_p: Keep smallest set of tokens with cumulative probability >= p
@@ -79,7 +79,7 @@ def top_k_top_p_filtering(
 
 def configure_tf32() -> bool:
     """Enable TF32 precision for GPUs with compute capability >= 8.0 (Ampere+).
-    
+
     :return: True if TF32 was enabled, False otherwise
     """
     if not torch.cuda.is_available():
@@ -109,6 +109,7 @@ def configure_tf32() -> bool:
 @dataclass
 class _LayerSummary:
     """Summary statistics for a single layer in the model."""
+
     name: str
     param_shape: Optional[torch.Size]
     inclusive_total_params: int
@@ -119,7 +120,7 @@ def model_summary(
     model: nn.Module, max_depth: int = 4, show_param_shapes: bool = False
 ) -> None:
     """Print hierarchical summary of model with parameter counts.
-    
+
     :param model: PyTorch model to summarize
     :param max_depth: Maximum depth of hierarchy to display
     :param show_param_shapes: Whether to show parameter shapes
@@ -156,7 +157,7 @@ def model_summary(
 
     def summarize_recursive(module: nn.Module, depth: int, prefix: str) -> Set[int]:
         """Recursively build summary for module subtree.
-        
+
         :param module: Current module being processed
         :param depth: Current depth in hierarchy
         :param prefix: Indentation prefix for display

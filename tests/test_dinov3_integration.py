@@ -7,6 +7,7 @@ from models.vision_language_model import VisionLanguageModel
 
 # Test both DINOv3 variants
 import sys
+
 encoder_type = sys.argv[1] if len(sys.argv) > 1 else "dinov3-small"
 print(f"Testing {encoder_type} integration...")
 
@@ -27,10 +28,13 @@ print(f"Image token ID: {image_token_id}")
 
 # Create sequence with 64 image tokens (as expected by modality projector)
 num_image_tokens = 64
-dummy_input_ids = torch.cat([
-    torch.full((batch_size, num_image_tokens), image_token_id),  # Image tokens
-    torch.randint(0, 49000, (batch_size, 36))  # Text tokens
-], dim=1)
+dummy_input_ids = torch.cat(
+    [
+        torch.full((batch_size, num_image_tokens), image_token_id),  # Image tokens
+        torch.randint(0, 49000, (batch_size, 36)),  # Text tokens
+    ],
+    dim=1,
+)
 seq_len = dummy_input_ids.shape[1]
 dummy_images = torch.randn(1, 3, 512, 512)  # Single image
 
@@ -41,16 +45,18 @@ with torch.no_grad():
         input_ids=dummy_input_ids,
         images=dummy_images,
         attention_mask=torch.ones(batch_size, seq_len),
-        targets=None
+        targets=None,
     )
 
-print(f"✓ Forward pass successful!")
+print("✓ Forward pass successful!")
 print(f"  Output shape: {logits.shape}")
 print(f"  Vision encoder params: {model.vision_encoder.get_total_params():,}")
 print(f"  Trainable params: {model.vision_encoder.get_num_trainable_params():,}")
 
 # Test freezing
 model.vision_encoder.freeze()
-print(f"✓ After freezing: {model.vision_encoder.get_num_trainable_params():,} trainable params")
+print(
+    f"✓ After freezing: {model.vision_encoder.get_num_trainable_params():,} trainable params"
+)
 
 print("\nAll tests passed! DINOv3-small integration is working.")

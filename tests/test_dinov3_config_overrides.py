@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """Test that DINOv3 config overrides are properly applied."""
 
-import torch
 from models.config import VLMConfig
 from models.vision_language_model import VisionLanguageModel
+
 
 def test_config_overrides():
     """Test that config overrides are applied to DINOv3 model."""
@@ -21,7 +21,9 @@ def test_config_overrides():
     print("Creating model with config overrides:")
     print(f"  LayerScale: {cfg.vit_layerscale_value}")
     print(f"  DropPath: {cfg.vit_drop_path_rate}")
-    print(f"  Position augmentation: shift={cfg.vit_pos_embed_shift}, jitter={cfg.vit_pos_embed_jitter}, rescale={cfg.vit_pos_embed_rescale}")
+    print(
+        f"  Position augmentation: shift={cfg.vit_pos_embed_shift}, jitter={cfg.vit_pos_embed_jitter}, rescale={cfg.vit_pos_embed_rescale}"
+    )
     print()
 
     # Create model
@@ -37,7 +39,9 @@ def test_config_overrides():
     actual_layerscale = getattr(model_config, "layerscale_value", None)
     expected_layerscale = cfg.vit_layerscale_value
     status = "✓" if actual_layerscale == expected_layerscale else "✗"
-    print(f"  LayerScale: {actual_layerscale} (expected {expected_layerscale}) {status}")
+    print(
+        f"  LayerScale: {actual_layerscale} (expected {expected_layerscale}) {status}"
+    )
 
     # Check DropPath
     actual_drop_path = getattr(model_config, "drop_path_rate", None)
@@ -59,7 +63,9 @@ def test_config_overrides():
     actual_rescale = getattr(model_config, "pos_embed_rescale", None)
     expected_rescale = cfg.vit_pos_embed_rescale
     status = "✓" if actual_rescale == expected_rescale else "✗"
-    print(f"  Position rescale: {actual_rescale} (expected {expected_rescale}) {status}")
+    print(
+        f"  Position rescale: {actual_rescale} (expected {expected_rescale}) {status}"
+    )
 
     # Test training mode
     print("\nTesting training mode activation:")
@@ -72,6 +78,7 @@ def test_config_overrides():
     model.vision_encoder.freeze()  # Should disable augmentations and dropout
 
     print("\n✅ Config override test complete!")
+
 
 if __name__ == "__main__":
     test_config_overrides()

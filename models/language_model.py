@@ -124,7 +124,7 @@ class RotaryEmbedding(nn.Module):
 
 def rotate_half(x: torch.Tensor) -> torch.Tensor:
     """Rotates input by swapping and negating half of hidden dimensions.
-    
+
     :param x: Input tensor
     :return: Rotated tensor
     """
@@ -416,9 +416,10 @@ class LanguageModelMLP(nn.Module):
 # https://github.com/meta-llama/llama3/blob/main/llama/model.py#L222
 class LanguageModelBlock(nn.Module):
     """Transformer decoder block with attention and MLP layers.
-    
+
     :param cfg: VLMConfig containing language model configuration
     """
+
     def __init__(self, cfg):
         super().__init__()
         self.mlp = LanguageModelMLP(cfg)
@@ -467,9 +468,10 @@ class LanguageModelBlock(nn.Module):
 # https://github.com/meta-llama/llama3/blob/main/llama/model.py#L251
 class LanguageModel(nn.Module):
     """Decoder-only transformer language model based on Llama architecture.
-    
+
     :param cfg: VLMConfig containing full language model configuration
     """
+
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
@@ -490,7 +492,7 @@ class LanguageModel(nn.Module):
 
     def _init_weights(self, module: nn.Module) -> None:
         """Initialize module weights using normal distribution.
-        
+
         :param module: Module to initialize
         """
         if isinstance(module, nn.Linear):
@@ -630,9 +632,9 @@ class LanguageModel(nn.Module):
 
     # Load the model from a pretrained HuggingFace model (we don't want to have to train the Language Backbone from scratch)
     @classmethod
-    def from_pretrained(cls, cfg) -> 'LanguageModel':
+    def from_pretrained(cls, cfg) -> "LanguageModel":
         """Load pretrained language model weights from HuggingFace.
-        
+
         :param cfg: VLMConfig with model specification in lm_model_type
         :return: LanguageModel with loaded pretrained weights
         """
@@ -803,7 +805,13 @@ class LanguageModel(nn.Module):
                             )
                             # Load updated weights
                             model.load_state_dict(sd)
+                            lm_head_loaded = True
                         break
+
+            if not lm_head_loaded:
+                print(
+                    "Warning: Could not find lm_head.weight in any safetensor file, using random initialization"
+                )
 
         # Handle weight tying (if needed)
         if (

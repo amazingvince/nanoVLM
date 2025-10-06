@@ -15,7 +15,7 @@ def get_tokenizer(
     chat_template: Optional[str] = None,
 ) -> PreTrainedTokenizer:
     """Get or create a cached tokenizer with optional special tokens and chat template.
-    
+
     :param name: Model name or path for tokenizer
     :param extra_special_tokens: Dictionary of extra special tokens to add
     :param chat_template: Custom chat template for tokenizer
@@ -66,26 +66,32 @@ def get_image_processor(
 
         # For DINOv3: rescale → resize → normalize (order matters!)
         # Use BILINEAR interpolation as per DINOv3 reference
-        transform_list.extend([
-            DynamicResize(
-                splitted_image_size,
-                max_img_size,
-                resize_to_max_side_len,
-                interpolation=InterpolationMode.BILINEAR  # DINOv3 uses BILINEAR
-            ),
-            transforms.ToTensor(),  # Implicitly rescales [0,255] → [0,1]
-            # ImageNet normalization for DINOv3 using processor's values
-            transforms.Normalize(mean=mean, std=std),
-            GlobalAndSplitImages(splitted_image_size),
-        ])
+        transform_list.extend(
+            [
+                DynamicResize(
+                    splitted_image_size,
+                    max_img_size,
+                    resize_to_max_side_len,
+                    interpolation=InterpolationMode.BILINEAR,  # DINOv3 uses BILINEAR
+                ),
+                transforms.ToTensor(),  # Implicitly rescales [0,255] → [0,1]
+                # ImageNet normalization for DINOv3 using processor's values
+                transforms.Normalize(mean=mean, std=std),
+                GlobalAndSplitImages(splitted_image_size),
+            ]
+        )
     else:
         # SigLIP and others: resize → tensor (no normalization)
         # Keep BICUBIC interpolation for SigLIP (default)
-        transform_list.extend([
-            DynamicResize(splitted_image_size, max_img_size, resize_to_max_side_len),
-            transforms.ToTensor(),
-            GlobalAndSplitImages(splitted_image_size),
-        ])
+        transform_list.extend(
+            [
+                DynamicResize(
+                    splitted_image_size, max_img_size, resize_to_max_side_len
+                ),
+                transforms.ToTensor(),
+                GlobalAndSplitImages(splitted_image_size),
+            ]
+        )
 
     return transforms.Compose(transform_list)
 
@@ -96,7 +102,7 @@ def get_image_string(
     mp_image_token_length: int,
 ) -> str:
     """Generate tokenized string representation for split images with position tokens.
-    
+
     :param tokenizer: Tokenizer with image special tokens
     :param splitted_image_counts: List of (height, width) tuples for split counts
     :param mp_image_token_length: Number of image tokens per patch

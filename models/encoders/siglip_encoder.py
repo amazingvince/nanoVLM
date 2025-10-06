@@ -39,7 +39,6 @@ class SigLIPEncoder(VisionEncoderBase):
         features = self.vit(images)
 
         # Calculate grid shape based on input size
-        batch_size = images.shape[0]
         height, width = images.shape[-2:]
         grid_h = height // self.patch_size
         grid_w = width // self.patch_size
@@ -98,7 +97,7 @@ class SigLIPEncoder(VisionEncoderBase):
         }
 
     @classmethod
-    def from_pretrained(cls, cfg) -> 'SigLIPEncoder':
+    def from_pretrained(cls, cfg) -> "SigLIPEncoder":
         """Load pretrained SigLIP weights.
 
         :param cfg: VLMConfig with model specification

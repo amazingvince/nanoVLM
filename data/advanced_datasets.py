@@ -12,7 +12,7 @@ random.seed(42)  # Set the random seed to the meaning of life for good luck
 
 class ConstantLengthDataset(IterableDataset):
     """Iterable dataset that packs variable-length sequences into fixed-length chunks.
-    
+
     :param dataset: Base dataset to iterate over
     :param infinite: Whether to loop infinitely over dataset
     :param max_sample_length: Maximum length for individual samples
@@ -22,6 +22,7 @@ class ConstantLengthDataset(IterableDataset):
     :param max_images_per_example: Maximum images per sample
     :param max_images_per_knapsack: Maximum images per packed sequence
     """
+
     def __init__(
         self,
         dataset: Any,
@@ -54,7 +55,7 @@ class ConstantLengthDataset(IterableDataset):
 
     def __iter__(self) -> Iterator[Dict[str, Any]]:
         """Yield fixed-length sequences using producer-consumer pattern.
-        
+
         :return: Iterator yielding dictionaries with input_ids, labels, attention_mask, images
         """
         worker_info = get_worker_info()
@@ -63,7 +64,7 @@ class ConstantLengthDataset(IterableDataset):
 
         def make_base_iterator() -> Iterator[Any]:
             """Return a (sharded) iterator over the underlying dataset.
-            
+
             :return: Iterator over dataset items
             """
             all_indices = range(len(self.dataset))
@@ -103,7 +104,7 @@ class ConstantLengthDataset(IterableDataset):
         queue: Queue,
     ) -> None:
         """Producer thread that fills queue with packed sequences.
-        
+
         :param make_iterator: Factory function for creating dataset iterators
         :param queue: Queue to fill with batches
         """
@@ -186,7 +187,7 @@ class ConstantLengthDataset(IterableDataset):
         max_images_per_knapsack: Optional[int] = None,
     ) -> List[List[int]]:
         """Pack samples into groups using greedy knapsack algorithm.
-        
+
         :param buffer: List of samples to pack
         :param L: Target length for each knapsack
         :param delta: Additional knapsacks to create for balance
@@ -247,7 +248,7 @@ class ConstantLengthDataset(IterableDataset):
         self, group_indices: List[int], batch: List[Dict[str, Any]], max_len: int
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, List[torch.Tensor]]:
         """Pack a group of samples into fixed-length tensors.
-        
+
         :param group_indices: Indices of samples to pack
         :param batch: List of all samples
         :param max_len: Maximum sequence length

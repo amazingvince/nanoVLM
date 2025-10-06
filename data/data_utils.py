@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 
 def _is_batch_valid(batch: Dict[str, Any]) -> bool:
     """Check if batch contains valid data for training/evaluation.
-    
+
     :param batch: Batch dictionary from dataloader
     :return: True if batch has valid input_ids and images
     """
@@ -33,7 +33,7 @@ def synchronized_dataloader_step(
     train_loader: DataLoader, is_dist: bool
 ) -> Iterator[Dict[str, Any]]:
     """Create synchronized iterator for distributed training with uneven data.
-    
+
     :param train_loader: DataLoader to iterate over
     :param is_dist: Whether running in distributed mode
     :return: Iterator yielding valid batches synchronized across ranks

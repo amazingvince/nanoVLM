@@ -14,6 +14,7 @@ class VLMConfig:
     :param max_img_size: Maximum image size for processing (pixels)
     :param vlm_extra_tokens: Special tokens for image placeholders and grid positions
     """
+
     vision_encoder_type: str = "siglip"  # New field for encoder selection
     vit_hidden_dim: int = 768
     vit_inter_dim: int = 4 * vit_hidden_dim
@@ -30,12 +31,20 @@ class VLMConfig:
     # DINOv3-specific parameters
     vit_rope_theta: float = 100.0  # Base period for 2D RoPE position embeddings
     vit_max_resolution: int = 1024  # Max resolution before RoPE extrapolation warning
-    vit_pos_embed_shift: Optional[float] = None  # Random position shift [-shift, shift] during training
-    vit_pos_embed_jitter: Optional[float] = None  # Log-uniform jitter [1/jitter, jitter] during training
-    vit_pos_embed_rescale: Optional[float] = 2.0  # Log-uniform rescale [1/rescale, rescale] during training
+    vit_pos_embed_shift: Optional[float] = (
+        None  # Random position shift [-shift, shift] during training
+    )
+    vit_pos_embed_jitter: Optional[float] = (
+        None  # Log-uniform jitter [1/jitter, jitter] during training
+    )
+    vit_pos_embed_rescale: Optional[float] = (
+        2.0  # Log-uniform rescale [1/rescale, rescale] during training
+    )
     vit_layerscale_value: float = 1.0  # LayerScale initial value for residual scaling
     vit_drop_path_rate: float = 0.0  # Stochastic depth rate
-    vit_use_gated_mlp: bool = False  # Use SwiGLU-style gated MLP instead of standard GELU
+    vit_use_gated_mlp: bool = (
+        False  # Use SwiGLU-style gated MLP instead of standard GELU
+    )
 
     lm_hidden_dim: int = 960
     lm_inter_dim: int = 2560
@@ -158,6 +167,7 @@ class TrainConfig:
     :param lmms_eval_* : LM evaluation harness configuration
     :param max_saved_checkpoints: Maximum number of checkpoints to retain
     """
+
     lr_mp: float = 0.00512
     lr_vision_backbone: float = 5e-5  # 0.0005 #
     lr_language_backbone: float = 5e-5  # 0
