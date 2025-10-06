@@ -5,13 +5,17 @@ import torch.nn as nn
 
 class ModalityProjector(nn.Module):
     """Projects vision features to language embedding space using pixel shuffle and linear projection.
-    
+
     :param cfg: VLMConfig containing modality projection parameters
     """
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
-        self.input_dim = cfg.vit_hidden_dim * (cfg.mp_pixel_shuffle_factor**2)
+
+        # Get vision encoder hidden dim (may be updated by encoder factory)
+        vision_hidden_dim = cfg.vit_hidden_dim
+
+        self.input_dim = vision_hidden_dim * (cfg.mp_pixel_shuffle_factor**2)
         self.output_dim = cfg.lm_hidden_dim
         self.scale_factor = cfg.mp_pixel_shuffle_factor
 

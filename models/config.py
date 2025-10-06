@@ -5,14 +5,16 @@ from typing import Dict, Optional, Tuple
 @dataclass
 class VLMConfig:
     """Configuration for Vision-Language Model architecture combining vision transformer, language model, and modality projection.
-    
+
+    :param vision_encoder_type: Type of vision encoder ("siglip", "dinov3-small", "dinov3-base")
     :param vit_* : Vision transformer configuration parameters
-    :param lm_* : Language model configuration parameters 
+    :param lm_* : Language model configuration parameters
     :param mp_* : Modality projection configuration parameters
     :param vlm_* : General VLM configuration parameters
     :param max_img_size: Maximum image size for processing (pixels)
     :param vlm_extra_tokens: Special tokens for image placeholders and grid positions
     """
+    vision_encoder_type: str = "siglip"  # New field for encoder selection
     vit_hidden_dim: int = 768
     vit_inter_dim: int = 4 * vit_hidden_dim
     vit_patch_size: int = 16
@@ -23,6 +25,7 @@ class VLMConfig:
     vit_ln_eps: float = 1e-6
     vit_cls_flag: bool = False
     vit_model_type: str = "google/siglip2-base-patch16-512"
+    vit_num_register_tokens: int = 0  # For DINOv3 support
 
     lm_hidden_dim: int = 960
     lm_inter_dim: int = 2560
@@ -134,8 +137,9 @@ class VLMConfig:
 @dataclass
 class TrainConfig:
     """Configuration for VLM training hyperparameters and dataset settings.
-    
+
     :param lr_* : Learning rates for different model components
+    :param freeze_vision_encoder: Whether to freeze vision encoder (recommended for DINOv3)
     :param batch_size: Training batch size per device
     :param gradient_accumulation_steps: Number of gradient accumulation steps
     :param max_training_steps: Maximum number of training steps
@@ -147,6 +151,7 @@ class TrainConfig:
     lr_mp: float = 0.00512
     lr_vision_backbone: float = 5e-5  # 0.0005 #
     lr_language_backbone: float = 5e-5  # 0
+    freeze_vision_encoder: bool = False  # Set to True for DINOv3 (recommended)
     data_cutoff_idx: Optional[int] = None
     val_ratio: float = 0.005
     batch_size: int = 1

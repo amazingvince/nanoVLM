@@ -14,7 +14,11 @@ from models.config import VLMConfig
 from models.language_model import LanguageModel
 from models.modality_projector import ModalityProjector
 from models.utils import top_k_top_p_filtering
-from models.vision_transformer import ViT
+from models.vision_encoder_registry import create_vision_encoder
+from models.vision_encoder_base import VisionEncoderOutput
+
+# Import encoders to register them
+import models.encoders  # noqa: F401
 
 
 class VisionLanguageModel(nn.Module):
@@ -26,13 +30,18 @@ class VisionLanguageModel(nn.Module):
     def __init__(self, cfg: VLMConfig, load_backbone: bool = True):
         super().__init__()
         self.cfg = cfg
+
+        # Create vision encoder using factory (updates cfg with encoder-specific values)
+        encoder_type = getattr(cfg, "vision_encoder_type", "siglip")
+        print(f"Using vision encoder: {encoder_type}")
+        self.vision_encoder = create_vision_encoder(cfg, load_pretrained=load_backbone)
+
         if load_backbone:
             print("Loading from backbone weights")
-            self.vision_encoder = ViT.from_pretrained(cfg)
             self.decoder = LanguageModel.from_pretrained(cfg)
         else:
-            self.vision_encoder = ViT(cfg)
             self.decoder = LanguageModel(cfg)
+
         self.MP = ModalityProjector(cfg)
         self.load_backbone = load_backbone
         self.tokenizer = get_tokenizer(
@@ -98,7 +107,10 @@ class VisionLanguageModel(nn.Module):
         token_embd = self.decoder.token_embedding(input_ids)  # [B, T_sequence, D_lm]
 
         if images_tensor is not None:
-            image_embd = self.vision_encoder(images_tensor)
+            # Get encoder output (now returns VisionEncoderOutput)
+            encoder_output = self.vision_encoder(images_tensor)
+            # Extract patch features (excluding CLS/register tokens if present)
+            image_embd = encoder_output.features
             image_embd = self.MP(
                 image_embd
             )  # [num_images, mp_image_token_length, D_lm]
@@ -150,7 +162,10 @@ class VisionLanguageModel(nn.Module):
 
         if images_tensor is not None:
             # 1. Process image if present
-            image_embd = self.vision_encoder(images_tensor)  # [B, T_img_feat, D_model]
+            # Get encoder output (now returns VisionEncoderOutput)
+            encoder_output = self.vision_encoder(images_tensor)
+            # Extract patch features (excluding CLS/register tokens if present)
+            image_embd = encoder_output.features  # [B, T_img_feat, D_model]
             image_embd = self.MP(image_embd)  # [B, mp_image_token_length, D_lm]
             # 2. Combine image and text embeddings
             token_embd = self._replace_img_tokens_with_embd(
