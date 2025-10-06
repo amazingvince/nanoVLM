@@ -46,7 +46,7 @@ VISION_ENCODER_CONFIGS = {
         preprocessing={
             "mean": None,  # SigLIP in nanoVLM doesn't use normalization
             "std": None,
-            "interpolation": "bicubic",
+            "interpolation": "bilinear",  # DINOv3 uses BILINEAR
         }
     ),
     "dinov3-small": VisionEncoderConfig(
@@ -59,7 +59,7 @@ VISION_ENCODER_CONFIGS = {
         preprocessing={
             "mean": [0.485, 0.456, 0.406],  # ImageNet normalization
             "std": [0.229, 0.224, 0.225],
-            "interpolation": "bicubic",
+            "interpolation": "bilinear",  # DINOv3 uses BILINEAR
             "rescale_factor": 1.0 / 255.0,  # DINOv3 specific
         }
     ),
@@ -73,7 +73,7 @@ VISION_ENCODER_CONFIGS = {
         preprocessing={
             "mean": [0.485, 0.456, 0.406],
             "std": [0.229, 0.224, 0.225],
-            "interpolation": "bicubic",
+            "interpolation": "bilinear",  # DINOv3 uses BILINEAR
             "rescale_factor": 1.0 / 255.0,
         }
     ),
