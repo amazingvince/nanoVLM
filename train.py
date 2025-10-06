@@ -645,7 +645,7 @@ def train(
                     optimizer.param_groups[param_group_idx]["lr"] = adj_lr_mp
                     param_group_idx += 1
 
-                if train_cfg.lr_vision_backbone > 0:
+                if train_cfg.lr_vision_backbone > 0 and not train_cfg.freeze_vision_encoder:
                     adj_lr_vision_backbone = get_lr(
                         global_step,
                         train_cfg.lr_vision_backbone,
@@ -954,7 +954,7 @@ def train(
                             optimizer.param_groups[param_group_idx]["lr"]
                         )
                         param_group_idx += 1
-                    if train_cfg.lr_vision_backbone > 0:
+                    if train_cfg.lr_vision_backbone > 0 and not train_cfg.freeze_vision_encoder:
                         current_lrs.append(
                             optimizer.param_groups[param_group_idx]["lr"]
                         )

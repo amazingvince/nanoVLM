@@ -50,7 +50,7 @@ VISION_ENCODER_CONFIGS = {
         }
     ),
     "dinov3-small": VisionEncoderConfig(
-        model_id="facebook/dinov3-vits16plus-pretrain-lvd1689m",
+        model_id="facebook/dinov3-vits16plus-pretrain-lvd1689m",  # 30M params - vits16plus
         hidden_dim=384,
         patch_size=16,
         image_size=518,  # DINOv3 uses 518x518 default
@@ -64,7 +64,7 @@ VISION_ENCODER_CONFIGS = {
         }
     ),
     "dinov3-base": VisionEncoderConfig(
-        model_id="facebook/dinov3-vitb16plus-pretrain-lvd1689m",
+        model_id="facebook/dinov3-vitb16-pretrain-lvd1689m",  # Fixed: removed "plus"
         hidden_dim=768,
         patch_size=16,
         image_size=518,
