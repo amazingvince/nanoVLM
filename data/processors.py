@@ -39,21 +39,40 @@ def get_image_processor(
     max_img_size: int,
     splitted_image_size: int,
     resize_to_max_side_len: bool = False,
+    encoder_type: str = "siglip",
 ) -> transforms.Compose:
     """Create image preprocessing pipeline with dynamic resizing and splitting.
-    
+
     :param max_img_size: Maximum image size in pixels
     :param splitted_image_size: Size of split image patches
     :param resize_to_max_side_len: Whether to resize to max side length
+    :param encoder_type: Type of vision encoder for preprocessing
     :return: Composed image transformation pipeline
     """
-    return transforms.Compose(
-        [
+    transform_list = []
+
+    # DINOv3 requires specific preprocessing order
+    if encoder_type.startswith("dinov3"):
+        # For DINOv3: rescale → resize → normalize
+        transform_list.extend([
+            DynamicResize(splitted_image_size, max_img_size, resize_to_max_side_len),
+            transforms.ToTensor(),
+            # ImageNet normalization for DINOv3
+            transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+            ),
+            GlobalAndSplitImages(splitted_image_size),
+        ])
+    else:
+        # SigLIP and others: resize → tensor (no normalization)
+        transform_list.extend([
             DynamicResize(splitted_image_size, max_img_size, resize_to_max_side_len),
             transforms.ToTensor(),
             GlobalAndSplitImages(splitted_image_size),
-        ]
-    )
+        ])
+
+    return transforms.Compose(transform_list)
 
 
 def get_image_string(

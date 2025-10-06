@@ -243,8 +243,13 @@ def get_dataloaders(
     # Validate worker configuration
     validate_num_workers(train_num_workers, val_num_workers)
     # Create datasets
+    # Get encoder type for preprocessing
+    encoder_type = getattr(vlm_cfg, "vision_encoder_type", "siglip")
     image_processor = get_image_processor(
-        vlm_cfg.max_img_size, vlm_cfg.vit_img_size, vlm_cfg.resize_to_max_side_len
+        vlm_cfg.max_img_size,
+        vlm_cfg.vit_img_size,
+        vlm_cfg.resize_to_max_side_len,
+        encoder_type
     )
     tokenizer = get_tokenizer(
         vlm_cfg.lm_tokenizer, vlm_cfg.vlm_extra_tokens, vlm_cfg.lm_chat_template
@@ -503,7 +508,12 @@ def train(
     else:
         for p in list(model.MP.parameters()):
             p.requires_grad = False
-    if train_cfg.lr_vision_backbone > 0:
+    # Handle vision encoder parameters - check both lr and freeze flag
+    if train_cfg.freeze_vision_encoder:
+        # Explicitly freeze vision encoder (recommended for DINOv3)
+        model.vision_encoder.freeze()
+        print("Vision encoder frozen (requires_grad=False)")
+    elif train_cfg.lr_vision_backbone > 0:
         param_groups.append(
             {
                 "params": list(model.vision_encoder.parameters()),
@@ -1165,6 +1175,17 @@ def get_parser() -> argparse.ArgumentParser:
         default=3,
         help="Maximum number of checkpoints to keep (0 = unlimited)",
     )
+    parser.add_argument(
+        "--vision_encoder_type",
+        type=str,
+        choices=["siglip", "dinov3-small", "dinov3-base"],
+        help="Type of vision encoder to use",
+    )
+    parser.add_argument(
+        "--freeze_vision_encoder",
+        action="store_true",
+        help="Freeze vision encoder weights (recommended for DINOv3)",
+    )
 
     return parser
 
@@ -1219,6 +1240,10 @@ def main() -> None:
         vlm_cfg.lm_tokenizer = args.lm_tokenizer
     if args.max_saved_checkpoints is not None:
         train_cfg.max_saved_checkpoints = args.max_saved_checkpoints
+    if args.vision_encoder_type is not None:
+        vlm_cfg.vision_encoder_type = args.vision_encoder_type
+    if args.freeze_vision_encoder:
+        train_cfg.freeze_vision_encoder = True
 
     if args.resume_from_vlm_checkpoint:
         train_cfg.resume_from_vlm_checkpoint = True
