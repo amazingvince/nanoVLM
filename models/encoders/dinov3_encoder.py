@@ -127,6 +127,26 @@ class DINOv3Encoder(VisionEncoderBase):
             return inputs["pixel_values"]
         return images
 
+    def train(self, mode: bool = True):
+        """Set training mode for both encoder and internal model.
+
+        :param mode: Whether to set training mode (True) or eval mode (False)
+        :return: Self
+        """
+        super().train(mode)
+        self.model.train(mode)
+        # Log when position augmentations will be active
+        if mode and (self._pos_embed_shift or self._pos_embed_jitter or self._pos_embed_rescale != 2.0):
+            print(f"DINOv3 training mode: Position augmentations active (shift={self._pos_embed_shift}, jitter={self._pos_embed_jitter}, rescale={self._pos_embed_rescale})")
+        return self
+
+    def eval(self):
+        """Set eval mode for both encoder and internal model.
+
+        :return: Self
+        """
+        return self.train(False)
+
     def forward(self, images: torch.Tensor) -> VisionEncoderOutput:
         """Encode images using DINOv3.
 
@@ -260,8 +280,10 @@ class DINOv3Encoder(VisionEncoderBase):
     def freeze(self) -> None:
         """Freeze all encoder parameters (recommended for DINOv3 in VLM)."""
         super().freeze()
-        # Also set model to eval mode for DINOv3
-        self.model.eval()
+        # Set model to eval mode to disable position augmentations and dropout
+        self.eval()
+        # Ensure dropout is disabled
         for module in self.model.modules():
             if isinstance(module, nn.Dropout):
                 module.p = 0  # Disable dropout when frozen
+        print("DINOv3 frozen: Position augmentations and dropout disabled")
