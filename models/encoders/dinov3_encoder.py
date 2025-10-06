@@ -42,12 +42,27 @@ class DINOv3Encoder(VisionEncoderBase):
             trust_remote_code=True,  # Required for DINOv3
         )
 
+        # Auto-detect register tokens from model config
+        model_config = self.model.config
+        self._num_register_tokens = getattr(model_config, "num_register_tokens", 4)
+
+        # Validate against user-provided value if present
+        user_register_tokens = getattr(cfg, "vit_num_register_tokens", None)
+        if user_register_tokens is not None and user_register_tokens != self._num_register_tokens:
+            print(f"Warning: Config specifies {user_register_tokens} register tokens but model has {self._num_register_tokens}. Using model value.")
+
         # Store configuration
         self.hidden_dim = cfg.vit_hidden_dim
         self._patch_size = cfg.vit_patch_size
         self._image_size = cfg.vit_img_size
         self._has_cls = cfg.vit_cls_flag
-        self._num_register_tokens = getattr(cfg, "vit_num_register_tokens", 4)
+
+        # DINOv3-specific parameters
+        self._rope_theta = getattr(cfg, "vit_rope_theta", 100.0)
+        self._max_resolution = getattr(cfg, "vit_max_resolution", 1024)
+        self._training_resolution = getattr(model_config, "image_size", 224)  # DINOv3 training resolution
+
+        print(f"DINOv3 initialized: register_tokens={self._num_register_tokens}, training_res={self._training_resolution}, max_res={self._max_resolution}")
 
     def forward(self, images: torch.Tensor) -> VisionEncoderOutput:
         """Encode images using DINOv3.
@@ -55,15 +70,32 @@ class DINOv3Encoder(VisionEncoderBase):
         :param images: Input images [batch_size, 3, height, width]
         :return: VisionEncoderOutput with features and pooled output
         """
+        # Check image size for RoPE extrapolation warning
+        _, _, h, w = images.shape
+        if max(h, w) > self._max_resolution:
+            print(f"Warning: Image size {h}x{w} exceeds max resolution {self._max_resolution}. "
+                  f"DINOv3's 2D RoPE may have degraded performance beyond training resolution ({self._training_resolution}).")
+
         # Get outputs from DINOv3
         outputs = self.model(images, return_dict=True)
 
         # Extract features - DINOv3 returns last_hidden_state
         all_features = outputs.last_hidden_state  # [B, seq_len, hidden_dim]
+        batch_size, seq_len, hidden_dim = all_features.shape
 
         # DINOv3 token layout: [CLS, register_tokens..., patch_tokens...]
         # We need to extract just the patch tokens for the VLM
         num_prefix_tokens = 1 + self._num_register_tokens  # CLS + registers
+
+        # Validate token layout
+        expected_patches = (h // self._patch_size) * (w // self._patch_size)
+        expected_seq_len = num_prefix_tokens + expected_patches
+        if seq_len != expected_seq_len:
+            raise ValueError(
+                f"Token layout mismatch! Expected {expected_seq_len} tokens "
+                f"(1 CLS + {self._num_register_tokens} registers + {expected_patches} patches), "
+                f"but got {seq_len}. Check register token count and image dimensions."
+            )
 
         # Extract patch features (excluding CLS and register tokens)
         patch_features = all_features[:, num_prefix_tokens:, :]

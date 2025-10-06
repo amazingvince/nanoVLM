@@ -1,6 +1,7 @@
 from typing import Dict, List, Optional, Tuple
 
 import torchvision.transforms as transforms
+from torchvision.transforms.functional import InterpolationMode
 from transformers import AutoTokenizer, PreTrainedTokenizer
 
 from data.custom_transforms import DynamicResize, GlobalAndSplitImages
@@ -51,12 +52,18 @@ def get_image_processor(
     """
     transform_list = []
 
-    # DINOv3 requires specific preprocessing order
+    # DINOv3 requires specific preprocessing order and BILINEAR interpolation
     if encoder_type.startswith("dinov3"):
         # For DINOv3: rescale → resize → normalize
+        # Use BILINEAR interpolation as per DINOv3 reference implementation
         transform_list.extend([
-            DynamicResize(splitted_image_size, max_img_size, resize_to_max_side_len),
-            transforms.ToTensor(),
+            DynamicResize(
+                splitted_image_size,
+                max_img_size,
+                resize_to_max_side_len,
+                interpolation=InterpolationMode.BILINEAR  # DINOv3 uses BILINEAR, not BICUBIC
+            ),
+            transforms.ToTensor(),  # Implicitly rescales [0,255] → [0,1]
             # ImageNet normalization for DINOv3
             transforms.Normalize(
                 mean=[0.485, 0.456, 0.406],
@@ -66,6 +73,7 @@ def get_image_processor(
         ])
     else:
         # SigLIP and others: resize → tensor (no normalization)
+        # Keep BICUBIC interpolation for SigLIP (default)
         transform_list.extend([
             DynamicResize(splitted_image_size, max_img_size, resize_to_max_side_len),
             transforms.ToTensor(),

@@ -25,7 +25,17 @@ class VLMConfig:
     vit_ln_eps: float = 1e-6
     vit_cls_flag: bool = False
     vit_model_type: str = "google/siglip2-base-patch16-512"
-    vit_num_register_tokens: int = 0  # For DINOv3 support
+    vit_num_register_tokens: int = 4  # DINOv3 register tokens (latent slots for global context)
+
+    # DINOv3-specific parameters
+    vit_rope_theta: float = 100.0  # Base period for 2D RoPE position embeddings
+    vit_max_resolution: int = 1024  # Max resolution before RoPE extrapolation warning
+    vit_pos_embed_shift: Optional[float] = None  # Random position shift [-shift, shift] during training
+    vit_pos_embed_jitter: Optional[float] = None  # Log-uniform jitter [1/jitter, jitter] during training
+    vit_pos_embed_rescale: Optional[float] = 2.0  # Log-uniform rescale [1/rescale, rescale] during training
+    vit_layerscale_value: float = 1.0  # LayerScale initial value for residual scaling
+    vit_drop_path_rate: float = 0.0  # Stochastic depth rate
+    vit_use_gated_mlp: bool = False  # Use SwiGLU-style gated MLP instead of standard GELU
 
     lm_hidden_dim: int = 960
     lm_inter_dim: int = 2560
