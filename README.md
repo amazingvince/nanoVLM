@@ -27,6 +27,13 @@ nanoVLM is the simplest repository for training/finetuning a small sized Vision-
 
 Similar to Andrej Karpathy's nanoGPT, we wanted to equip the community with a very simple implementation and training script for Vision Language Models. We do not claim this to be a new SOTA model, rather an educational effort that packs quite a bit of punch if you have the right hardware! You should be able to tweak and play around with the code in no time.
 
+**New: Multi-Encoder Support!** nanoVLM now supports multiple vision encoders beyond the default SigLIP:
+- **SigLIP** (default): 86M params, the original encoder
+- **DINOv3-small**: 30M params with SwiGLU FFN
+- **DINOv3-base**: 86M params, recommended to freeze during training
+
+See the [Vision Encoders documentation](docs/vision_encoders.md) for details on using different encoders.
+
 
 ## What can nanoVLM do?
 
@@ -85,6 +92,23 @@ huggingface-cli login
 python train.py
 ```
 which will use the default `models/config.py`.
+
+### Training with Different Vision Encoders
+
+You can choose different vision encoders using the `--vision_encoder_type` flag:
+
+```bash
+# Train with DINOv3-small (30M params, frozen encoder recommended)
+python train.py --vision_encoder_type dinov3-small --freeze_vision_encoder
+
+# Train with DINOv3-base (86M params, frozen encoder recommended)
+python train.py --vision_encoder_type dinov3-base --freeze_vision_encoder
+
+# Train with default SigLIP (86M params)
+python train.py  # or explicitly: --vision_encoder_type siglip
+```
+
+The `--freeze_vision_encoder` flag is recommended for DINOv3 models as they work best when frozen during VLM training.
 
 ## Generate
 
