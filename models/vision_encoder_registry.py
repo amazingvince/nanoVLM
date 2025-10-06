@@ -22,6 +22,7 @@ class VisionEncoderConfig:
     :param num_register_tokens: Number of register tokens (e.g., DINOv3)
     :param preprocessing: Preprocessing configuration
     """
+
     model_id: str
     hidden_dim: int
     patch_size: int
@@ -47,7 +48,7 @@ VISION_ENCODER_CONFIGS = {
             "mean": None,  # SigLIP in nanoVLM doesn't use normalization
             "std": None,
             "interpolation": "bilinear",  # DINOv3 uses BILINEAR
-        }
+        },
     ),
     "dinov3-small": VisionEncoderConfig(
         model_id="facebook/dinov3-vits16plus-pretrain-lvd1689m",  # 30M params - vits16plus
@@ -61,7 +62,7 @@ VISION_ENCODER_CONFIGS = {
             "std": [0.229, 0.224, 0.225],
             "interpolation": "bilinear",  # DINOv3 uses BILINEAR
             "rescale_factor": 1.0 / 255.0,  # DINOv3 specific
-        }
+        },
     ),
     "dinov3-base": VisionEncoderConfig(
         model_id="facebook/dinov3-vitb16-pretrain-lvd1689m",  # Fixed: removed "plus"
@@ -75,7 +76,7 @@ VISION_ENCODER_CONFIGS = {
             "std": [0.229, 0.224, 0.225],
             "interpolation": "bilinear",  # DINOv3 uses BILINEAR
             "rescale_factor": 1.0 / 255.0,
-        }
+        },
     ),
 }
 
@@ -88,9 +89,11 @@ def register_encoder(name: str):
 
     :param name: Name of the encoder type (e.g., "siglip", "dinov3")
     """
+
     def decorator(cls: Type[VisionEncoderBase]):
         _ENCODER_REGISTRY[name] = cls
         return cls
+
     return decorator
 
 
@@ -142,7 +145,15 @@ def create_vision_encoder(cfg, load_pretrained: bool = True) -> VisionEncoderBas
     # Update cfg with encoder-specific values
     cfg.vit_hidden_dim = encoder_config.hidden_dim
     cfg.vit_patch_size = encoder_config.patch_size
-    cfg.vit_img_size = encoder_config.image_size
+
+    # Use user-specified image size if provided, otherwise encoder default
+    if hasattr(cfg, "_user_specified_vit_img_size"):
+        print(
+            f"Using user-specified vit_img_size: {cfg._user_specified_vit_img_size} (overriding encoder default {encoder_config.image_size})"
+        )
+    else:
+        cfg.vit_img_size = encoder_config.image_size
+
     cfg.vit_cls_flag = encoder_config.has_cls
     cfg.vit_num_register_tokens = encoder_config.num_register_tokens
     cfg.vit_model_type = encoder_config.model_id

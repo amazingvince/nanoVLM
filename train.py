@@ -249,7 +249,7 @@ def get_dataloaders(
         vlm_cfg.max_img_size,
         vlm_cfg.vit_img_size,
         vlm_cfg.resize_to_max_side_len,
-        encoder_type
+        encoder_type,
     )
     tokenizer = get_tokenizer(
         vlm_cfg.lm_tokenizer, vlm_cfg.vlm_extra_tokens, vlm_cfg.lm_chat_template
@@ -614,9 +614,7 @@ def train(
             fw_bw_start = time.time()
             autocast_context = torch.autocast(
                 device_type=device.type,
-                dtype=(
-                    torch.bfloat16 if device.type in ["cuda", "cpu"] else torch.float16
-                ),
+                dtype=torch.bfloat16,
             )
             with autocast_context:
                 with context:
@@ -645,7 +643,10 @@ def train(
                     optimizer.param_groups[param_group_idx]["lr"] = adj_lr_mp
                     param_group_idx += 1
 
-                if train_cfg.lr_vision_backbone > 0 and not train_cfg.freeze_vision_encoder:
+                if (
+                    train_cfg.lr_vision_backbone > 0
+                    and not train_cfg.freeze_vision_encoder
+                ):
                     adj_lr_vision_backbone = get_lr(
                         global_step,
                         train_cfg.lr_vision_backbone,
@@ -954,7 +955,10 @@ def train(
                             optimizer.param_groups[param_group_idx]["lr"]
                         )
                         param_group_idx += 1
-                    if train_cfg.lr_vision_backbone > 0 and not train_cfg.freeze_vision_encoder:
+                    if (
+                        train_cfg.lr_vision_backbone > 0
+                        and not train_cfg.freeze_vision_encoder
+                    ):
                         current_lrs.append(
                             optimizer.param_groups[param_group_idx]["lr"]
                         )
@@ -1186,6 +1190,16 @@ def get_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Freeze vision encoder weights (recommended for DINOv3)",
     )
+    parser.add_argument(
+        "--vit_img_size",
+        type=int,
+        help="Vision encoder patch processing size (default: 512 for SigLIP, 518 for DINOv3). DINOv3 supports dynamic resolution via 2D RoPE.",
+    )
+    parser.add_argument(
+        "--max_img_size",
+        type=int,
+        help="Maximum image size before splitting into patches (default: 1024)",
+    )
 
     return parser
 
@@ -1244,6 +1258,12 @@ def main() -> None:
         vlm_cfg.vision_encoder_type = args.vision_encoder_type
     if args.freeze_vision_encoder:
         train_cfg.freeze_vision_encoder = True
+    if args.vit_img_size is not None:
+        vlm_cfg.vit_img_size = args.vit_img_size
+        # Store that user explicitly set this so registry doesn't override
+        vlm_cfg._user_specified_vit_img_size = args.vit_img_size
+    if args.max_img_size is not None:
+        vlm_cfg.max_img_size = args.max_img_size
 
     if args.resume_from_vlm_checkpoint:
         train_cfg.resume_from_vlm_checkpoint = True
