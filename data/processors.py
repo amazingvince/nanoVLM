@@ -42,6 +42,8 @@ def get_image_processor(
     resize_to_max_side_len: bool = False,
     encoder_type: str = "siglip",
     processor=None,  # Optional AutoImageProcessor for DINOv3
+    compression_factor: int = 4,  # Modality projector compression factor
+    mp_image_token_length: int = 64,  # Target tokens per window
 ) -> transforms.Compose:
     """Create image preprocessing pipeline with dynamic resizing and splitting.
 
@@ -50,9 +52,26 @@ def get_image_processor(
     :param resize_to_max_side_len: Whether to resize to max side length
     :param encoder_type: Type of vision encoder for preprocessing
     :param processor: Optional AutoImageProcessor for DINOv3 to ensure accurate preprocessing
+    :param compression_factor: Modality projector compression factor (typically 4)
+    :param mp_image_token_length: Target tokens per window after projection (typically 64)
     :return: Composed image transformation pipeline
     """
     transform_list = []
+
+    # Determine if we need windowing for high-resolution support
+    # DINOv3 at high res needs fixed windows, SigLIP can handle variable patches
+    use_windowing = encoder_type.startswith("dinov3") and splitted_image_size > 256
+
+    # Calculate window size for encoders that need it
+    # Window must produce exactly mp_image_token_length tokens after compression
+    # For patch16 with 4x compression: 256x256 window → 16x16 patches → 256 patches → 64 tokens
+    patch_size = 16  # All our models use patch16
+    if use_windowing:
+        patches_per_window = mp_image_token_length * (compression_factor**2)
+        patches_per_side = int(patches_per_window**0.5)
+        window_size = patches_per_side * patch_size  # Should be 256 for default values
+    else:
+        window_size = splitted_image_size  # Not used in standard mode
 
     # DINOv3 requires specific preprocessing order and BILINEAR interpolation
     if encoder_type.startswith("dinov3"):
@@ -77,7 +96,11 @@ def get_image_processor(
                 transforms.ToTensor(),  # Implicitly rescales [0,255] → [0,1]
                 # ImageNet normalization for DINOv3 using processor's values
                 transforms.Normalize(mean=mean, std=std),
-                GlobalAndSplitImages(splitted_image_size),
+                GlobalAndSplitImages(
+                    patch_size,  # Pass actual patch size (16), not image size
+                    use_windowing=use_windowing,
+                    window_size=window_size,
+                ),
             ]
         )
     else:
@@ -89,7 +112,11 @@ def get_image_processor(
                     splitted_image_size, max_img_size, resize_to_max_side_len
                 ),
                 transforms.ToTensor(),
-                GlobalAndSplitImages(splitted_image_size),
+                GlobalAndSplitImages(
+                    splitted_image_size,
+                    use_windowing=False,  # SigLIP uses standard mode
+                    window_size=window_size,  # Not used but passed for consistency
+                ),
             ]
         )
 
@@ -101,27 +128,43 @@ def get_image_string(
     splitted_image_counts: List[Tuple[int, int]],
     mp_image_token_length: int,
 ) -> str:
-    """Generate tokenized string representation for split images with position tokens.
+    """Generate tokenized string representation for windowed images.
+
+    With window-based splitting, each window (including global) produces exactly
+    mp_image_token_length tokens.
 
     :param tokenizer: Tokenizer with image special tokens
-    :param splitted_image_counts: List of (height, width) tuples for split counts
-    :param mp_image_token_length: Number of image tokens per patch
-    :return: String with image tokens and position markers
+    :param splitted_image_counts: List of (n_windows_h, n_windows_w) tuples for window counts
+    :param mp_image_token_length: Number of image tokens per window
+    :return: String with image tokens for all windows
     """
     image_string = ""
-    # splitted_image_counts is a list of tuples (n_h, n_w)
+
     for idx, (n_h, n_w) in enumerate(splitted_image_counts):
         if len(splitted_image_counts) > 1:
             image_string += f"<image: {idx}>"
-        if hasattr(tokenizer, "global_image_token"):
-            image_string += tokenizer.global_image_token
+
+        # For window-based approach:
+        # - If (1,1): single window, no global needed
+        # - If (n_h, n_w) with n_h*n_w > 1: we have 1 global + n_h*n_w local windows
+
+        if n_h == 1 and n_w == 1:
+            # Single window - just emit tokens for it
             image_string += tokenizer.image_token * mp_image_token_length
-            if (
-                n_h == 1 and n_w == 1
-            ):  # If there is only one patch, treat it as the global image
-                continue
-        for i in range(n_h):
-            for j in range(n_w):
-                image_string += getattr(tokenizer, f"r{i + 1}c{j + 1}")
-                image_string += tokenizer.image_token * mp_image_token_length
+        else:
+            # Multiple windows: global + local windows
+            # Global window tokens
+            if hasattr(tokenizer, "global_image_token"):
+                image_string += tokenizer.global_image_token
+            image_string += tokenizer.image_token * mp_image_token_length
+
+            # Local window tokens with position indicators
+            for i in range(n_h):
+                for j in range(n_w):
+                    # Add position token if available
+                    pos_token_name = f"r{i + 1}c{j + 1}"
+                    if hasattr(tokenizer, pos_token_name):
+                        image_string += getattr(tokenizer, pos_token_name)
+                    image_string += tokenizer.image_token * mp_image_token_length
+
     return image_string

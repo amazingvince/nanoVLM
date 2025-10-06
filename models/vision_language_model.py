@@ -66,6 +66,21 @@ class VisionLanguageModel(nn.Module):
 
         # Build a mask of all image-token positions: shape [B, T_seq]
         mask = input_ids == self.tokenizer.image_token_id
+
+        # Sanity check: ensure we have the right number of image tokens
+        num_image_tokens = mask.sum().item()
+        num_image_embeddings = image_embd.shape[0] * image_embd.shape[1]
+
+        if num_image_tokens != num_image_embeddings:
+            raise ValueError(
+                f"Token count mismatch: Expected {num_image_tokens} image tokens "
+                f"but got {num_image_embeddings} image embeddings. "
+                f"Image embedding shape: {image_embd.shape}. "
+                f"This often happens when using high-resolution images that produce "
+                f"more patches than the model expects. Consider using lower resolution "
+                f"or enabling window-based splitting for your encoder."
+            )
+
         updated_token_embd[mask] = image_embd.view(-1, image_embd.size(-1)).to(
             updated_token_embd.dtype
         )  # torch flattens before assigning

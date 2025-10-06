@@ -124,29 +124,114 @@ class SplitImage(torch.nn.Module):
 
 
 class GlobalAndSplitImages(torch.nn.Module):
-    """Split images into patches and add global context patch.
+    """Split images into patches with optional fixed-size windowing.
 
-    :param patch_size: Size of each square patch
+    Supports two modes:
+    1. Standard mode (use_windowing=False): Original behavior for SigLIP
+       - Images split into variable number of patches based on size
+       - Global context added for multi-patch images
+
+    2. Windowed mode (use_windowing=True): For encoders needing fixed token counts
+       - Images split into fixed-size windows (e.g., 256×256)
+       - Each window produces exactly mp_image_token_length tokens
+       - Enables high-resolution support for DINOv3
+
+    :param patch_size: Size of each square patch (typically 16)
+    :param use_windowing: Whether to use fixed-size window splitting
+    :param window_size: Size of each window in pixels (only for windowed mode)
     """
 
-    def __init__(self, patch_size: int):
+    def __init__(
+        self, patch_size: int, use_windowing: bool = False, window_size: int = 256
+    ):
         super().__init__()
         self.p = patch_size
-        self.splitter = SplitImage(patch_size)
+        self.use_windowing = use_windowing
+        self.window_size = window_size
+
+        # For standard mode, reuse the original SplitImage
+        if not use_windowing:
+            self.splitter = SplitImage(patch_size)
+        else:
+            # Validate window size is divisible by patch size
+            if window_size % patch_size != 0:
+                raise ValueError(
+                    f"Window size {window_size} must be divisible by patch size {patch_size}"
+                )
+            print(f"Window mode enabled: {window_size}×{window_size}px windows")
+
+    def _standard_forward(
+        self, x: torch.Tensor
+    ) -> Tuple[torch.Tensor, Tuple[int, int]]:
+        """Original SigLIP behavior: variable patches with optional global context."""
+        patches, grid = self.splitter(x)
+
+        if grid == (1, 1):
+            return patches, grid  # Don't add global patch if there is only one patch
+
+        # Add global context for multi-patch images
+        global_patch = resize(x, [self.p, self.p])
+        return torch.cat([global_patch, patches], dim=0), grid
+
+    def _windowed_forward(
+        self, x: torch.Tensor
+    ) -> Tuple[torch.Tensor, Tuple[int, int]]:
+        """Window-based splitting for fixed token counts."""
+        b, c, h, w = x.shape
+
+        # If image fits in one window, just validate and return
+        if h <= self.window_size and w <= self.window_size:
+            if h % self.p or w % self.p:
+                raise ValueError(
+                    f"Image size {(h, w)} not divisible by patch_size {self.p}"
+                )
+            return x, (1, 1)
+
+        # Calculate number of windows needed
+        n_windows_h = math.ceil(h / self.window_size)
+        n_windows_w = math.ceil(w / self.window_size)
+
+        # Pad image to be divisible by window size
+        pad_h = n_windows_h * self.window_size - h
+        pad_w = n_windows_w * self.window_size - w
+
+        if pad_h > 0 or pad_w > 0:
+            x = torch.nn.functional.pad(x, (0, pad_w, 0, pad_h), mode="replicate")
+
+        # Extract windows
+        windows = []
+
+        # First add global context (downsampled full image)
+        global_window = resize(x, [self.window_size, self.window_size])
+        windows.append(global_window)
+
+        # Extract each window
+        for i in range(n_windows_h):
+            for j in range(n_windows_w):
+                h_start = i * self.window_size
+                w_start = j * self.window_size
+                window = x[
+                    :,
+                    :,
+                    h_start : h_start + self.window_size,
+                    w_start : w_start + self.window_size,
+                ]
+                windows.append(window)
+
+        # Stack all windows
+        all_windows = torch.cat(windows, dim=0)
+        return all_windows, (n_windows_h, n_windows_w)
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, Tuple[int, int]]:
-        """Split image and prepend global context patch.
+        """Split image based on configured mode.
 
         :param x: Input tensor [batch, channels, height, width]
-        :return: Tuple of (patches with global context, grid dimensions)
+        :return: Tuple of (patches/windows, grid dimensions)
         """
         if x.ndim == 3:
             x = x.unsqueeze(0)
 
-        patches, grid = self.splitter(x)
-
-        if grid == (1, 1):
-            return patches, grid  # Dont add global patch if there is only one patch
-
-        global_patch = resize(x, [self.p, self.p])
-        return torch.cat([global_patch, patches], dim=0), grid
+        if self.use_windowing:
+            return self._windowed_forward(x)
+        else:
+            return self._standard_forward(x)

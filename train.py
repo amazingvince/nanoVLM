@@ -250,6 +250,9 @@ def get_dataloaders(
         vlm_cfg.vit_img_size,
         vlm_cfg.resize_to_max_side_len,
         encoder_type,
+        processor=None,  # Could pass AutoImageProcessor if available
+        compression_factor=vlm_cfg.mp_pixel_shuffle_factor,
+        mp_image_token_length=vlm_cfg.mp_image_token_length,
     )
     tokenizer = get_tokenizer(
         vlm_cfg.lm_tokenizer, vlm_cfg.vlm_extra_tokens, vlm_cfg.lm_chat_template

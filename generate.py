@@ -92,8 +92,15 @@ def main():
     resize_to_max_side_len = False
     if hasattr(model.cfg, "resize_to_max_side_len"):
         resize_to_max_side_len = model.cfg.resize_to_max_side_len
+    encoder_type = getattr(model.cfg, "vision_encoder_type", "siglip")
     image_processor = get_image_processor(
-        model.cfg.max_img_size, model.cfg.vit_img_size, resize_to_max_side_len
+        model.cfg.max_img_size,
+        model.cfg.vit_img_size,
+        resize_to_max_side_len,
+        encoder_type,
+        processor=None,
+        compression_factor=model.cfg.mp_pixel_shuffle_factor,
+        mp_image_token_length=model.cfg.mp_image_token_length,
     )
 
     img = Image.open(args.image).convert("RGB")
