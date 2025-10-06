@@ -81,6 +81,69 @@ model = VisionLanguageModel(cfg, load_backbone=True)
 model.vision_encoder.freeze()
 ```
 
+## DINOv3 Advanced Features
+
+### Fully Supported Features ✅
+
+nanoVLM now properly leverages DINOv3's advanced capabilities:
+
+#### 1. **2D RoPE (Rotary Position Embeddings)**
+- Dynamically computed based on image dimensions
+- Supports variable resolution inference
+- Automatic extrapolation warnings for images > max_resolution
+
+#### 2. **Position Embedding Augmentations** (Training Only)
+- **Shift**: Random position shift in [-shift, shift]
+- **Jitter**: Log-uniform jitter in [1/jitter, jitter]
+- **Rescale**: Log-uniform rescale in [1/rescale, rescale]
+- Automatically disabled in eval mode or when encoder is frozen
+
+#### 3. **LayerScale & DropPath**
+- Configurable LayerScale initial values for training stability
+- Stochastic depth (DropPath) for regularization
+- Both can be overridden via config parameters
+
+#### 4. **AutoImageProcessor Integration**
+- Uses official HuggingFace processor for accurate preprocessing
+- Correct preprocessing order: rescale → resize → normalize
+- BILINEAR interpolation (not BICUBIC)
+- Dynamic sizing support
+
+#### 5. **Register Tokens**
+- Auto-detected from model config (typically 4)
+- Provide additional representational capacity
+- Properly excluded from patch features
+
+### Configurable Parameters
+
+```python
+from models.config import VLMConfig
+
+cfg = VLMConfig()
+cfg.vision_encoder_type = "dinov3-small"
+
+# Override DINOv3-specific parameters
+cfg.vit_layerscale_value = 0.5      # Default: 1.0
+cfg.vit_drop_path_rate = 0.1        # Default: 0.0
+cfg.vit_rope_theta = 100.0          # RoPE base period
+cfg.vit_max_resolution = 1024       # Max before extrapolation warning
+
+# Position augmentations (training only)
+cfg.vit_pos_embed_shift = 0.1       # Random shift
+cfg.vit_pos_embed_jitter = 2.0      # Log-uniform jitter
+cfg.vit_pos_embed_rescale = 3.0     # Log-uniform rescale
+```
+
+### Non-Configurable Features ❌
+
+These are baked into the pretrained weights and cannot be changed:
+
+- **Attention biases** (query/key/value/proj)
+- **MLP type** (SwiGLU vs standard GELU)
+- **Number of layers/heads**
+- **Hidden dimensions**
+- **Patch size**
+
 ## Architecture Details
 
 ### Abstraction Layer
@@ -187,11 +250,22 @@ DINOv3's register tokens are special learnable tokens that:
 
 ## Troubleshooting
 
-### Issue: IndexError with frozen encoder
-**Solution**: The fix has been applied - optimizer learning rate updates now check if encoder is frozen
+### Issue: Config overrides not being applied
+**Solution**: Fixed - config parameters are now properly passed to `AutoModel.from_pretrained()`
+**Verify**: Run `test_dinov3_config_overrides.py` to confirm all overrides work
+
+### Issue: Position augmentations not working
+**Solution**: Fixed - augmentations only apply in training mode, automatically disabled when frozen
+**Usage**: Call `model.vision_encoder.train()` for training, `.eval()` for inference
+
+### Issue: Wrong interpolation mode
+**Solution**: Fixed - DINOv3 now uses BILINEAR interpolation as per reference implementation
+
+### Issue: Register token count mismatch
+**Solution**: Fixed - register tokens are now auto-detected from model config
 
 ### Issue: Shape mismatch in token replacement
-**Solution**: Ensure image tokens are present in input_ids when using forward pass
+**Solution**: Token layout validation added - clear error messages if mismatch occurs
 
 ### Issue: Different loss scales between encoders
 **Normal**: Different encoders may start with different initial loss values; focus on the trend
