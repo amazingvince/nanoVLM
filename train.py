@@ -14,6 +14,7 @@ from pathlib import Path
 from statistics import mean
 from typing import Any, List, Tuple
 
+import datasets
 import numpy
 import torch
 import torch.distributed as dist
@@ -276,6 +277,7 @@ def get_dataloaders(
     dataset_iterator = tqdm(
         dataset_names_to_load, desc="Loading dataset configs", disable=not is_master()
     )
+    datasets.disable_progress_bar()  # Disable HF datasets internal progress bars
 
     for dataset_name in dataset_iterator:
         if "shard_" in dataset_name:
@@ -301,6 +303,8 @@ def get_dataloaders(
                     f"Warning: Failed to load dataset config '{dataset_name}' from '{train_cfg.train_dataset_path}'. Error: {e}"
                 )
             continue
+
+    datasets.enable_progress_bar()  # Re-enable HF datasets progress bars
 
     if not combined_train_data:
         raise ValueError(
