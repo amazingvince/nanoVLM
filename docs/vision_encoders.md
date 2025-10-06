@@ -19,7 +19,7 @@ nanoVLM now supports multiple vision encoders through a flexible abstraction lay
 - **Parameters**: 30M
 - **Hidden Dimension**: 384
 - **Patch Size**: 16×16
-- **Default Input Size**: 518×518
+- **Default Input Size**: 512×512 for VLM training (pretrained at 224×224, 2D RoPE enables resolution scaling)
 - **Special Features**:
   - Uses SwiGLU FFN (gated MLP)
   - 2D RoPE position embeddings
@@ -32,7 +32,7 @@ nanoVLM now supports multiple vision encoders through a flexible abstraction lay
 - **Parameters**: 86M
 - **Hidden Dimension**: 768
 - **Patch Size**: 16×16
-- **Default Input Size**: 518×518
+- **Default Input Size**: 512×512 for VLM training (pretrained at 224×224, 2D RoPE enables resolution scaling)
 - **Special Features**:
   - Standard GELU MLP (not gated)
   - 2D RoPE position embeddings
@@ -183,7 +183,7 @@ All encoders return a `VisionEncoderOutput` with:
 ### DINOv3
 - ImageNet normalization (mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 - Specific preprocessing order: rescale → resize → normalize
-- Dynamic resize with 518×518 default
+- VLM training default: 512×512 (leveraging 2D RoPE for resolution scaling from 224×224 pretraining)
 
 ## Performance Comparison
 
