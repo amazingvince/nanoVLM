@@ -187,7 +187,11 @@ def get_run_name(train_cfg: config.TrainConfig, vlm_cfg: config.VLMConfig) -> st
     learning_rate = f"lr_vision_{train_cfg.lr_vision_backbone}-language_{train_cfg.lr_language_backbone}-{train_cfg.lr_mp}"
     num_gpus = f"{get_world_size()}xGPU"
     date = time.strftime("%m%d-%H%M%S")
-    vit = f"{vlm_cfg.vit_model_type.split('/')[-1]}" + f"_{vlm_cfg.max_img_size}"
+
+    # Use vision_encoder_type (clean name) and vit_img_size (patch size) for accurate run names
+    vit = f"{vlm_cfg.vision_encoder_type}_{vlm_cfg.vit_img_size}"
+    if train_cfg.freeze_vision_encoder:
+        vit += "_frozen"
     mp = f"mp{vlm_cfg.mp_pixel_shuffle_factor}"
     llm = f"{vlm_cfg.lm_model_type.split('/')[-1]}"
 
