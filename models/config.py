@@ -25,7 +25,7 @@ class VLMConfig:
     vit_ln_eps: float = 1e-6
     vit_cls_flag: bool = False
     vit_model_type: str = "google/siglip2-base-patch16-512"
-    vit_num_register_tokens: int = 4  # DINOv3 register tokens (latent slots for global context)
+    vit_num_register_tokens: Optional[int] = None  # Auto-detected from model for DINOv3
 
     # DINOv3-specific parameters
     vit_rope_theta: float = 100.0  # Base period for 2D RoPE position embeddings

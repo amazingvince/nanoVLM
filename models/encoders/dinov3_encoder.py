@@ -63,7 +63,11 @@ class DINOv3Encoder(VisionEncoderBase):
 
         # Auto-detect register tokens from model config
         model_config = self.model.config
-        self._num_register_tokens = getattr(model_config, "num_register_tokens", 4)
+        self._num_register_tokens = getattr(model_config, "num_register_tokens", 0)
+
+        # Warn if model doesn't have register tokens configured
+        if not hasattr(model_config, "num_register_tokens"):
+            print(f"Warning: Model config doesn't specify num_register_tokens. Assuming {self._num_register_tokens}.")
 
         # Validate that our config overrides were applied
         if hasattr(cfg, "vit_layerscale_value") and cfg.vit_layerscale_value is not None:
