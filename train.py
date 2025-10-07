@@ -1159,6 +1159,16 @@ def get_parser() -> argparse.ArgumentParser:
         help="Interval for logging training progress to console",
     )
     parser.add_argument(
+        "--batch_size",
+        type=int,
+        help="Training batch size per device",
+    )
+    parser.add_argument(
+        "--gradient_accumulation_steps",
+        type=int,
+        help="Number of gradient accumulation steps",
+    )
+    parser.add_argument(
         "--use_slurm_for_eval",
         action="store_true",
         help="Submit evaluation jobs to SLURM cluster",
@@ -1243,6 +1253,10 @@ def main() -> None:
         train_cfg.formatting_min_rating = args.formatting_min_rating
     if args.console_log_interval is not None:
         train_cfg.console_log_interval = args.console_log_interval
+    if args.batch_size is not None:
+        train_cfg.batch_size = args.batch_size
+    if args.gradient_accumulation_steps is not None:
+        train_cfg.gradient_accumulation_steps = args.gradient_accumulation_steps
     if args.use_slurm_for_eval:
         train_cfg.use_slurm_for_eval = True
     if args.lm_model_type is not None:
