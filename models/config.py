@@ -76,7 +76,9 @@ class VLMConfig:
     mp_pixel_shuffle_factor: int = 4
     mp_image_token_length: int = 64
 
-    max_img_size: int = 1024  # Max WHOLE image size before splitting into vit_img_size patches
+    max_img_size: int = (
+        1024  # Max WHOLE image size before splitting into vit_img_size patches
+    )
     resize_to_max_side_len: bool = True
 
     vlm_extra_tokens: Dict[str, str] = field(
