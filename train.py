@@ -177,15 +177,8 @@ def get_run_name(train_cfg: config.TrainConfig, vlm_cfg: config.VLMConfig) -> st
     :param vlm_cfg: VLM model configuration
     :return: Formatted run name string
     """
-    dataset_size = (
-        "full_ds"
-        if train_cfg.data_cutoff_idx is None
-        else f"{train_cfg.data_cutoff_idx}samples"
-    )
     batch_size = f"bs{int(train_cfg.batch_size * get_world_size() * train_cfg.gradient_accumulation_steps)}"
     max_training_steps = f"{train_cfg.max_training_steps}"
-    learning_rate = f"lr_vision_{train_cfg.lr_vision_backbone}-language_{train_cfg.lr_language_backbone}-{train_cfg.lr_mp}"
-    num_gpus = f"{get_world_size()}xGPU"
     date = time.strftime("%m%d-%H%M%S")
 
     # Use vision_encoder_type (clean name) and vit_img_size (patch size) for accurate run names
@@ -195,7 +188,7 @@ def get_run_name(train_cfg: config.TrainConfig, vlm_cfg: config.VLMConfig) -> st
     mp = f"mp{vlm_cfg.mp_pixel_shuffle_factor}"
     llm = f"{vlm_cfg.lm_model_type.split('/')[-1]}"
 
-    return f"nanoVLM_{vit}_{mp}_{llm}_{num_gpus}_{dataset_size}_{batch_size}_{max_training_steps}_{learning_rate}_{date}"
+    return f"nanoVLM_{vit}_{mp}_{llm}_{batch_size}_{max_training_steps}_{date}"
 
 
 def validate_num_workers(train_workers: int, val_workers: int) -> None:
@@ -465,10 +458,6 @@ def train(
             print("All workers have gotten dataloaders.")
 
     run_name = get_run_name(train_cfg, vlm_cfg)
-    total_dataset_size = len(train_loader.dataset)
-    if train_cfg.log_wandb and is_master():
-        if train_cfg.data_cutoff_idx is None:
-            run_name = run_name.replace("full_ds", f"{total_dataset_size}samples")
     if train_cfg.log_wandb and is_master():
         run = wandb.init(
             entity=train_cfg.wandb_entity,
