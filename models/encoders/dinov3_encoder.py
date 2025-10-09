@@ -213,6 +213,7 @@ class DINOv3Encoder(VisionEncoderBase):
 
         # Extract patch features (excluding CLS and register tokens)
         patch_features = all_features[:, num_prefix_tokens:, :]
+        global_features = all_features[:, :num_prefix_tokens, :]
 
         # Extract CLS token as pooled output
         pooled_output = all_features[:, 0, :]  # CLS token
@@ -226,6 +227,7 @@ class DINOv3Encoder(VisionEncoderBase):
         return VisionEncoderOutput(
             features=patch_features,
             pooled_output=pooled_output,
+            global_features=global_features,
             num_patches=num_patches,
             grid_shape=grid_shape,
         )

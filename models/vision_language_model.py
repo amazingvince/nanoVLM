@@ -128,9 +128,8 @@ class VisionLanguageModel(nn.Module):
             # Get encoder output (now returns VisionEncoderOutput)
             encoder_output = self.vision_encoder(images_tensor)
             # Extract patch features (excluding CLS/register tokens if present)
-            image_embd = encoder_output.features
             image_embd = self.MP(
-                image_embd
+                encoder_output.features, encoder_output.global_features
             )  # [num_images, mp_image_token_length, D_lm]
             token_embd = self._replace_img_tokens_with_embd(
                 input_ids, token_embd, image_embd
@@ -183,8 +182,9 @@ class VisionLanguageModel(nn.Module):
             # Get encoder output (now returns VisionEncoderOutput)
             encoder_output = self.vision_encoder(images_tensor)
             # Extract patch features (excluding CLS/register tokens if present)
-            image_embd = encoder_output.features  # [B, T_img_feat, D_model]
-            image_embd = self.MP(image_embd)  # [B, mp_image_token_length, D_lm]
+            image_embd = self.MP(
+                encoder_output.features, encoder_output.global_features
+            )  # [B, mp_image_token_length, D_lm]
             # 2. Combine image and text embeddings
             token_embd = self._replace_img_tokens_with_embd(
                 input_ids, token_embd, image_embd

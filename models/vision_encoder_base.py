@@ -18,12 +18,14 @@ class VisionEncoderOutput:
 
     :param features: Main output features [batch_size, num_patches, hidden_dim]
     :param pooled_output: Optional pooled/CLS token output [batch_size, hidden_dim]
+    :param global_features: Optional special-token features (CLS/register) [batch_size, num_tokens, hidden_dim]
     :param num_patches: Number of patch tokens (excluding CLS/register tokens)
     :param grid_shape: Optional (height, width) of patch grid
     """
 
     features: torch.Tensor
     pooled_output: Optional[torch.Tensor] = None
+    global_features: Optional[torch.Tensor] = None
     num_patches: Optional[int] = None
     grid_shape: Optional[Tuple[int, int]] = None
 

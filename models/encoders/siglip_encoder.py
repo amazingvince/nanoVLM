@@ -47,6 +47,7 @@ class SigLIPEncoder(VisionEncoderBase):
         return VisionEncoderOutput(
             features=features,
             pooled_output=None,  # SigLIP doesn't use CLS token
+            global_features=None,
             num_patches=num_patches,
             grid_shape=(grid_h, grid_w),
         )

@@ -95,6 +95,11 @@ def get_image_processor(
         # Maintain DINO order: rescale → resize → normalize
         transform_list.append(transforms.ToTensor())
 
+        resize_patch_size = (
+            vit_patch_size if encoder_type.startswith("dinov3") else splitted_image_size
+        )
+        resize_max_side = min(max_img_size, splitted_image_size)
+
         if do_rescale:
             # ToTensor rescales by 1/255; adjust if processor expects a different factor
             scale = rescale_factor * 255.0
@@ -108,8 +113,8 @@ def get_image_processor(
 
         transform_list.append(
             DynamicResize(
-                splitted_image_size,
-                max_img_size,
+                resize_patch_size,
+                resize_max_side,
                 resize_to_max_side_len,
                 interpolation=InterpolationMode.BILINEAR,  # DINOv3 uses BILINEAR
             )

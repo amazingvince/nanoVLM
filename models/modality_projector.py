@@ -1,4 +1,4 @@
-# Modality Projection from Vision to Language
+from typing import Optional
 import torch
 import torch.nn as nn
 
@@ -13,12 +13,38 @@ class ModalityProjector(nn.Module):
         super().__init__()
         self.cfg = cfg
 
+        # Determine encoder type behaviour
+        self.encoder_type = getattr(cfg, "vision_encoder_type", "siglip")
+        self.use_dino_adapter = self.encoder_type.startswith("dinov3")
+
         # Get vision encoder hidden dim (may be updated by encoder factory)
         vision_hidden_dim = cfg.vit_hidden_dim
 
         self.input_dim = vision_hidden_dim * (cfg.mp_pixel_shuffle_factor**2)
         self.output_dim = cfg.lm_hidden_dim
         self.scale_factor = cfg.mp_pixel_shuffle_factor
+
+        if self.use_dino_adapter:
+            self.vision_norm = nn.LayerNorm(vision_hidden_dim)
+
+            num_heads = max(1, vision_hidden_dim // 64)
+            encoder_layer = nn.TransformerEncoderLayer(
+                d_model=vision_hidden_dim,
+                nhead=num_heads,
+                dim_feedforward=vision_hidden_dim * 4,
+                batch_first=True,
+                dropout=0.0,
+                activation="gelu",
+                norm_first=True,
+            )
+            self.adapter = nn.TransformerEncoder(encoder_layer, num_layers=2)
+            self.post_norm = nn.LayerNorm(self.output_dim)
+            self.summary_proj = nn.Linear(vision_hidden_dim * 2, self.output_dim)
+        else:
+            self.vision_norm = None
+            self.adapter = None
+            self.post_norm = None
+            self.summary_proj = None
 
         self.proj = nn.Linear(self.input_dim, self.output_dim, bias=False)
 
@@ -30,7 +56,7 @@ class ModalityProjector(nn.Module):
         :param module: Module to initialize
         """
         if isinstance(module, nn.Linear):
-            nn.init.normal_(self.proj.weight, mean=0.0, std=0.02)
+            nn.init.normal_(module.weight, mean=0.0, std=0.02)
             if module.bias is not None:
                 nn.init.zeros_(module.bias)
 
@@ -63,13 +89,42 @@ class ModalityProjector(nn.Module):
 
         return x
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, patch_tokens: torch.Tensor, global_tokens: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         """Project vision features to language embedding space.
 
-        :param x: Vision features [batch_size, num_patches, vit_hidden_dim]
+        :param patch_tokens: Vision patch features [batch_size, num_patches, vit_hidden_dim]
+        :param global_tokens: Optional CLS/register tokens [batch_size, num_globals, vit_hidden_dim]
         :return: Language embeddings [batch_size, reduced_patches, lm_hidden_dim]
         """
-        x = self.pixel_shuffle(x)
-        x = self.proj(x)
+        if not self.use_dino_adapter:
+            tokens = self.pixel_shuffle(patch_tokens)
+            return self.proj(tokens)
 
-        return x
+        patch_tokens = self.vision_norm(patch_tokens)
+        if global_tokens is not None:
+            global_tokens = self.vision_norm(global_tokens)
+            combined = torch.cat([global_tokens, patch_tokens], dim=1)
+            combined = self.adapter(combined)
+            num_globals = global_tokens.size(1)
+            global_tokens = combined[:, :num_globals, :]
+            patch_tokens = combined[:, num_globals:, :]
+        else:
+            patch_tokens = self.adapter(patch_tokens)
+
+        tokens = self.pixel_shuffle(patch_tokens)
+        tokens = self.proj(tokens)
+        tokens = self.post_norm(tokens)
+
+        cls_token = (
+            global_tokens[:, 0, :]
+            if global_tokens is not None
+            else patch_tokens.mean(dim=1)
+        )
+        patch_mean = patch_tokens.mean(dim=1)
+        summary_bias = self.summary_proj(torch.cat([cls_token, patch_mean], dim=-1))
+
+        tokens = tokens + summary_bias.unsqueeze(1)
+
+        return tokens
