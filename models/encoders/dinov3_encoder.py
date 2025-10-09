@@ -122,8 +122,9 @@ class DINOv3Encoder(VisionEncoderBase):
         print("DINOv3 initialized with:")
         print(f"  Model: {cfg.vit_model_type}")
         print(f"  Register tokens: {self._num_register_tokens}")
-        print(f"  Training resolution: {self._training_resolution}")
-        print(f"  Max resolution: {self._max_resolution}")
+        print(f"  Pretraining resolution: {self._training_resolution}")
+        print(f"  Max recommended resolution: {self._max_resolution}")
+        print(f"  Requested vit_img_size: {cfg.vit_img_size}")
         print(f"  LayerScale: {self._layerscale_value}")
         print(f"  DropPath: {self._drop_path_rate}")
         if (

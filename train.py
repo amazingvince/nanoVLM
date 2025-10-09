@@ -495,6 +495,12 @@ def train(
             vlm_cfg, load_backbone=vlm_cfg.vlm_load_backbone_weights
         )
 
+    # If requested, freeze vision encoder immediately so summaries reflect final state
+    vision_encoder_frozen = False
+    if train_cfg.freeze_vision_encoder:
+        model.vision_encoder.freeze()
+        vision_encoder_frozen = True
+
     # print out overviews: model, training info
     if is_master():
         print("\nnanoVLM:", flush=True)
@@ -526,9 +532,7 @@ def train(
         for p in list(model.MP.parameters()):
             p.requires_grad = False
     # Handle vision encoder parameters - check both lr and freeze flag
-    if train_cfg.freeze_vision_encoder:
-        # Explicitly freeze vision encoder (recommended for DINOv3)
-        model.vision_encoder.freeze()
+    if vision_encoder_frozen:
         print("Vision encoder frozen (requires_grad=False)")
     elif train_cfg.lr_vision_backbone > 0:
         param_groups.append(
