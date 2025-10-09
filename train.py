@@ -47,6 +47,8 @@ from data.datasets import VQADataset  # noqa: E402
 from data.processors import get_image_processor, get_tokenizer  # noqa: E402
 from models.utils import configure_tf32, model_summary  # noqa: E402
 from models.vision_language_model import VisionLanguageModel  # noqa: E402
+from models.vision_encoder_registry import get_encoder_config  # noqa: E402
+from transformers import AutoImageProcessor  # noqa: E402
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
@@ -243,12 +245,27 @@ def get_dataloaders(
     # Create datasets
     # Get encoder type for preprocessing
     encoder_type = getattr(vlm_cfg, "vision_encoder_type", "siglip")
+    processor = None
+    if encoder_type.startswith("dinov3"):
+        try:
+            encoder_config = get_encoder_config(encoder_type)
+            processor = AutoImageProcessor.from_pretrained(
+                encoder_config.model_id, trust_remote_code=True
+            )
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.warning(
+                "Unable to load AutoImageProcessor for %s (%s). "
+                "Falling back to local transform defaults.",
+                encoder_type,
+                exc,
+            )
+
     image_processor = get_image_processor(
         vlm_cfg.max_img_size,
         vlm_cfg.vit_img_size,
         vlm_cfg.resize_to_max_side_len,
         encoder_type,
-        processor=None,  # Could pass AutoImageProcessor if available
+        processor=processor,
         compression_factor=vlm_cfg.mp_pixel_shuffle_factor,
         mp_image_token_length=vlm_cfg.mp_image_token_length,
     )

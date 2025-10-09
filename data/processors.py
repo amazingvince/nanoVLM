@@ -1,3 +1,4 @@
+import math
 from typing import Dict, List, Optional, Tuple
 
 import torchvision.transforms as transforms
@@ -79,29 +80,52 @@ def get_image_processor(
         if processor is not None:
             mean = getattr(processor, "image_mean", [0.485, 0.456, 0.406])
             std = getattr(processor, "image_std", [0.229, 0.224, 0.225])
+            rescale_factor = getattr(processor, "rescale_factor", 1.0 / 255.0)
+            do_rescale = getattr(processor, "do_rescale", True)
+            do_normalize = getattr(processor, "do_normalize", True)
+            vit_patch_size = getattr(processor, "patch_size", 16)
         else:
             mean = [0.485, 0.456, 0.406]
             std = [0.229, 0.224, 0.225]
+            rescale_factor = 1.0 / 255.0
+            do_rescale = True
+            do_normalize = True
+            vit_patch_size = 16
 
-        # For DINOv3: rescale → resize → normalize (order matters!)
-        # Use BILINEAR interpolation as per DINOv3 reference
-        transform_list.extend(
-            [
-                DynamicResize(
-                    splitted_image_size,
-                    max_img_size,
-                    resize_to_max_side_len,
-                    interpolation=InterpolationMode.BILINEAR,  # DINOv3 uses BILINEAR
-                ),
-                transforms.ToTensor(),  # Implicitly rescales [0,255] → [0,1]
-                # ImageNet normalization for DINOv3 using processor's values
-                transforms.Normalize(mean=mean, std=std),
-                GlobalAndSplitImages(
-                    patch_size,  # Pass actual patch size (16), not image size
-                    use_windowing=use_windowing,
-                    window_size=window_size,
-                ),
-            ]
+        # Maintain DINO order: rescale → resize → normalize
+        transform_list.append(transforms.ToTensor())
+
+        if do_rescale:
+            # ToTensor rescales by 1/255; adjust if processor expects a different factor
+            scale = rescale_factor * 255.0
+            if not math.isclose(scale, 1.0, rel_tol=1e-6):
+                transform_list.append(
+                    transforms.Lambda(lambda x, scale=scale: x * scale)
+                )
+        else:
+            # Processor expects raw 0-255 values; undo ToTensor scaling
+            transform_list.append(transforms.Lambda(lambda x, scale=255.0: x * scale))
+
+        transform_list.append(
+            DynamicResize(
+                splitted_image_size,
+                max_img_size,
+                resize_to_max_side_len,
+                interpolation=InterpolationMode.BILINEAR,  # DINOv3 uses BILINEAR
+            )
+        )
+
+        if do_normalize:
+            transform_list.append(transforms.Normalize(mean=mean, std=std))
+
+        split_patch_size = vit_patch_size if use_windowing else splitted_image_size
+
+        transform_list.append(
+            GlobalAndSplitImages(
+                split_patch_size,
+                use_windowing=use_windowing,
+                window_size=window_size,
+            )
         )
     else:
         # SigLIP and others: resize → tensor (no normalization)

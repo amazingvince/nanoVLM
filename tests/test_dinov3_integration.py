@@ -2,8 +2,10 @@
 """Quick test to verify DINOv3 integration works."""
 
 import torch
+from PIL import Image
 from models.config import VLMConfig
 from models.vision_language_model import VisionLanguageModel
+from data.processors import get_image_processor
 
 # Test both DINOv3 variants
 import sys
@@ -58,5 +60,22 @@ model.vision_encoder.freeze()
 print(
     f"✓ After freezing: {model.vision_encoder.get_num_trainable_params():,} trainable params"
 )
+
+# Validate preprocessing keeps full images at native resolution
+print("\nChecking preprocessing pipeline at native resolution (224×224)...")
+processor = get_image_processor(
+    max_img_size=224,
+    splitted_image_size=224,
+    resize_to_max_side_len=False,
+    encoder_type=encoder_type,
+    processor=model.vision_encoder.processor,
+    compression_factor=cfg.mp_pixel_shuffle_factor,
+    mp_image_token_length=cfg.mp_image_token_length,
+)
+test_image = Image.new("RGB", (224, 224), color=128)
+processed_tensor, split_counts = processor(test_image)
+assert processed_tensor.shape == (1, 3, 224, 224), processed_tensor.shape
+assert split_counts == (1, 1), split_counts
+print("✓ Preprocessing preserves full image for 224px inputs.")
 
 print("\nAll tests passed! DINOv3-small integration is working.")

@@ -17,6 +17,7 @@ def test_config_overrides():
     cfg.vit_pos_embed_shift = 0.1  # Add position augmentation
     cfg.vit_pos_embed_jitter = 1.5
     cfg.vit_pos_embed_rescale = 3.0
+    cfg.vit_use_gated_mlp = True
 
     print("Creating model with config overrides:")
     print(f"  LayerScale: {cfg.vit_layerscale_value}")
@@ -66,6 +67,11 @@ def test_config_overrides():
     print(
         f"  Position rescale: {actual_rescale} (expected {expected_rescale}) {status}"
     )
+
+    actual_gated_mlp = getattr(model_config, "use_gated_mlp", None)
+    expected_gated_mlp = cfg.vit_use_gated_mlp
+    status = "✓" if actual_gated_mlp == expected_gated_mlp else "✗"
+    print(f"  Gated MLP: {actual_gated_mlp} (expected {expected_gated_mlp}) {status}")
 
     # Test training mode
     print("\nTesting training mode activation:")

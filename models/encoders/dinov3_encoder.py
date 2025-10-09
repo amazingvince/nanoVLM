@@ -63,6 +63,8 @@ class DINOv3Encoder(VisionEncoderBase):
             and cfg.vit_pos_embed_rescale is not None
         ):
             config_overrides["pos_embed_rescale"] = cfg.vit_pos_embed_rescale
+        if hasattr(cfg, "vit_use_gated_mlp") and cfg.vit_use_gated_mlp is not None:
+            config_overrides["use_gated_mlp"] = cfg.vit_use_gated_mlp
 
         # Create DINOv3 model with config overrides
         self.model = AutoModel.from_pretrained(cfg.vit_model_type, **config_overrides)
@@ -216,8 +218,9 @@ class DINOv3Encoder(VisionEncoderBase):
 
         # Calculate grid shape based on number of patches
         batch_size, num_patches, _ = patch_features.shape
-        grid_size = int(num_patches**0.5)
-        grid_shape = (grid_size, grid_size)
+        grid_h = h // self._patch_size
+        grid_w = w // self._patch_size
+        grid_shape = (grid_h, grid_w)
 
         return VisionEncoderOutput(
             features=patch_features,
